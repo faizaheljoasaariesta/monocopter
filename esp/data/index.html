@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monochopter Flight Monitor</title>
+<style>
+:root{
+  --bg:#0a0e16; --panel:#111824; --panel2:#0d141e; --edge:#1d2a3a;
+  --cyan:#19c3e6; --green:#1fd65f; --amber:#ffb020; --red:#ff4d4d;
+  --magenta:#e64bd0; --text:#cfe0f0; --dim:#6d8298; --grid:#16202e;
+  /* variabel tambahan agar kanvas (ADI/PFD/gauge) ikut tema */
+  --topbar1:#13202e; --topbar2:#0c1420;
+  --tapebg:rgba(8,14,22,.55); --tagbg:rgba(8,14,22,.7);
+  --tick:#33485f; --needle:#ffffff; --bezel:#1d2a3a;
+  --gaugetrack:#1d2a3a; --canvastext:#cfe0f0; --readtext:#04121c;
+  --grid3d1:#1d2a3a; --grid3d2:#16202e;
+}
+body.light{
+  --bg:#e8edf4; --panel:#ffffff; --panel2:#f1f5fa; --edge:#c9d5e2;
+  --cyan:#0680a8; --green:#0d9a43; --amber:#a86f00; --red:#d32f2f;
+  --magenta:#a92796; --text:#1e2c3c; --dim:#5b7085; --grid:#dfe6ee;
+  --topbar1:#f7fafd; --topbar2:#e9eff6;
+  --tapebg:rgba(255,255,255,.7); --tagbg:rgba(255,255,255,.82);
+  --tick:#9db0c2; --needle:#26384c; --bezel:#c9d5e2;
+  --gaugetrack:#d7e0ea; --canvastext:#1e2c3c; --readtext:#ffffff;
+  --grid3d1:#b9c7d6; --grid3d2:#d4dee9;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:13px; overflow:hidden;
+}
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* ---------- Top bar ---------- */
+.topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:8px 14px;background:linear-gradient(180deg,var(--topbar1),var(--topbar2));
+  border-bottom:1px solid var(--edge);
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.5px}
+.logo .dot{width:11px;height:11px;border-radius:50%;background:var(--red);
+  box-shadow:0 0 10px var(--red);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.logo b{color:var(--cyan)}
+.topbar .sub{color:var(--dim);font-size:11px}
+.status-pills{display:flex;gap:8px;margin-left:auto;align-items:center}
+.rc-link{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:700;
+  text-decoration:none;color:var(--amber);border:1px solid var(--amber);
+  background:rgba(255,176,32,.1);transition:.15s}
+.rc-link:hover{background:var(--amber);color:#1a1000}
+.pill{
+  padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;
+  border:1px solid var(--edge);background:var(--panel2);
+  display:flex;align-items:center;gap:6px;
+}
+.pill .led{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+.pill.on .led{background:var(--green);box-shadow:0 0 8px var(--green)}
+.pill.warn .led{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.pill.err .led{background:var(--red);box-shadow:0 0 8px var(--red)}
+
+/* ---------- Main grid ---------- */
+.grid{
+  flex:1;display:grid;gap:10px;padding:10px;min-height:0;
+  grid-template-columns:300px 1fr 320px;
+  grid-template-rows:1fr 1fr;
+  grid-template-areas:
+    "attitude horizon gauges"
+    "telemetry model  control";
+}
+.panel{
+  background:var(--panel);border:1px solid var(--edge);border-radius:8px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.panel > h2{
+  font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:var(--cyan);padding:7px 12px;border-bottom:1px solid var(--edge);
+  display:flex;align-items:center;gap:8px;background:var(--panel2);
+}
+.panel > h2 .badge{margin-left:auto;color:var(--dim);font-weight:500;
+  font-size:10px;letter-spacing:.5px}
+.panel .body{flex:1;padding:10px;min-height:0;overflow:auto;position:relative}
+
+#attitude{grid-area:attitude}
+#horizon{grid-area:horizon}
+#gauges{grid-area:gauges}
+#telemetry{grid-area:telemetry}
+#model{grid-area:model}
+#control{grid-area:control}
+
+/* ---------- Attitude indicator ---------- */
+.adi-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+#adi{width:220px;height:220px}
+.adi-read{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%}
+.adi-read .cell{background:var(--panel2);border:1px solid var(--edge);
+  border-radius:6px;padding:6px;text-align:center}
+.adi-read .cell .lbl{font-size:9px;color:var(--dim);letter-spacing:1px}
+.adi-read .cell .val{font-size:16px;font-weight:700;color:var(--green)}
+
+/* ---------- Horizon / PFD ---------- */
+#horizon .body{padding:0;display:flex;flex-direction:column}
+#pfd{flex:1;width:100%;display:block}
+.pfd-overlay{position:absolute;top:10px;left:12px;right:12px;
+  display:flex;justify-content:space-between;pointer-events:none}
+.pfd-tag{background:var(--tagbg);border:1px solid var(--edge);
+  border-radius:4px;padding:3px 8px;font-size:11px;font-weight:600}
+.pfd-tag .v{color:var(--cyan)}
+
+/* ---------- tombol tema ---------- */
+.theme-btn{padding:5px 10px;border-radius:5px;font-size:13px;cursor:pointer;
+  border:1px solid var(--edge);background:var(--panel2);color:var(--text);
+  line-height:1;transition:.15s}
+.theme-btn:hover{border-color:var(--cyan)}
+
+/* ---------- Gauges ---------- */
+.gauge-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gauge{display:flex;flex-direction:column;align-items:center;
+  background:var(--panel2);border:1px solid var(--edge);border-radius:8px;
+  padding:8px}
+.gauge canvas{width:120px;height:120px}
+.gauge .gl{font-size:9px;color:var(--dim);letter-spacing:1px;margin-top:2px}
+.gauge .gv{font-size:15px;font-weight:700;margin-top:1px}
+
+/* ---------- Telemetry table ---------- */
+.telem{display:flex;flex-direction:column;gap:3px}
+.telem .row{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 8px;background:var(--panel2);border-radius:5px;
+  border-left:3px solid var(--edge)}
+.telem .row .k{color:var(--dim);font-size:11px}
+.telem .row .v{font-weight:700;font-variant-numeric:tabular-nums}
+.telem .row.hi{border-left-color:var(--cyan)}
+.telem .sec{font-size:9px;color:var(--cyan);letter-spacing:1px;
+  margin:6px 0 2px;font-weight:700}
+
+/* ---------- 3D model ---------- */
+#model .body{padding:0}
+#three{width:100%;height:100%;display:block}
+.model-hud{position:absolute;bottom:8px;left:10px;font-size:10px;
+  color:var(--dim);pointer-events:none;line-height:1.5}
+.model-hud b{color:var(--text)}
+.model-trimhint{position:absolute;top:8px;right:10px;font-size:9px;
+  color:var(--dim);text-align:right;line-height:1.5;max-width:150px;
+  background:rgba(0,0,0,.25);padding:4px 7px;border-radius:6px}
+.model-trimhint a{color:var(--cyan);text-decoration:none;font-weight:700;
+  pointer-events:auto}
+.model-trimhint a:hover{text-decoration:underline}
+
+/* ---------- Control ---------- */
+.ctrl-block{margin-bottom:12px}
+.ctrl-block .t{font-size:9px;color:var(--cyan);letter-spacing:1px;
+  font-weight:700;margin-bottom:6px}
+.btn-row{display:flex;gap:8px}
+.btn{flex:1;padding:9px;border:1px solid var(--edge);border-radius:6px;
+  background:var(--panel2);color:var(--text);font-weight:700;cursor:pointer;
+  font-size:12px;transition:.15s}
+.btn:hover{border-color:var(--cyan)}
+.btn.arm{border-color:var(--green);color:var(--green)}
+.btn.arm.active{background:var(--green);color:#04140a}
+.btn.disarm{border-color:var(--red);color:var(--red)}
+.btn.disarm.active{background:var(--red);color:#1a0404}
+.mode-row{display:flex;gap:6px}
+.mode-btn{flex:1;padding:7px;border:1px solid var(--edge);border-radius:6px;
+  background:var(--panel2);color:var(--dim);cursor:pointer;font-size:11px;
+  font-weight:600;text-align:center;transition:.15s}
+.mode-btn.active{border-color:var(--cyan);color:var(--cyan);
+  background:rgba(25,195,230,.1)}
+.slider-row{display:flex;align-items:center;gap:10px}
+.slider-row input[type=range]{flex:1;accent-color:var(--cyan)}
+.slider-row .sv{min-width:54px;text-align:right;font-weight:700;
+  color:var(--green);font-variant-numeric:tabular-nums}
+.servo-bars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+  margin-top:4px}
+.sbar{display:flex;flex-direction:column;align-items:center;gap:3px}
+.sbar .track{width:100%;height:60px;background:var(--panel2);
+  border:1px solid var(--edge);border-radius:4px;position:relative;
+  overflow:hidden}
+.sbar .fill{position:absolute;left:0;right:0;background:var(--magenta);
+  top:50%;height:2px;transition:.1s}
+.sbar .mid{position:absolute;left:0;right:0;top:50%;height:1px;
+  background:var(--edge)}
+.sbar .lbl{font-size:9px;color:var(--dim)}
+.sbar .deg{font-size:10px;font-weight:700;color:var(--magenta)}
+
+/* ---------- PID config ---------- */
+.pid-cfg{display:flex;flex-direction:column;gap:4px}
+.pid-head,.pid-row{display:grid;grid-template-columns:38px 1fr 1fr 1fr 40px;
+  gap:4px;align-items:center}
+.pid-head span{font-size:8px;color:var(--dim);text-align:center;letter-spacing:.5px}
+.pid-head span:first-child{text-align:left}
+.pid-row .pl{font-size:10px;color:var(--text);font-weight:700}
+.pin{width:100%;padding:4px;background:var(--panel2);border:1px solid var(--edge);
+  border-radius:4px;color:var(--text);font-size:11px;text-align:center;
+  font-variant-numeric:tabular-nums}
+.pin:focus{outline:none;border-color:var(--cyan)}
+.pset{padding:4px 0;background:var(--panel2);border:1px solid var(--cyan);
+  border-radius:4px;color:var(--cyan);font-size:9px;font-weight:700;cursor:pointer}
+.pset:hover{background:var(--cyan);color:#04121c}
+.pset.ok{background:var(--green);border-color:var(--green);color:#04140a}
+.pid-note{font-size:9px;color:var(--dim);margin-top:5px;text-align:center}
+.wp-status{font-size:10px;color:var(--cyan);margin-bottom:5px;font-weight:700;
+  padding:4px 8px;background:rgba(25,195,230,.08);border-radius:5px;
+  border:1px solid var(--edge)}
+.wp-input{width:100%;background:var(--panel2,#0d141e);color:var(--text);
+  border:1px solid var(--edge);border-radius:6px;padding:7px;font-size:11px;
+  font-family:"Consolas",monospace;resize:vertical;line-height:1.5}
+.wp-input:focus{outline:none;border-color:var(--cyan)}
+
+/* ---------- scrollbar ---------- */
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-thumb{background:var(--edge);border-radius:4px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- responsive ---------- */
+@media(max-width:1100px){
+  .grid{grid-template-columns:1fr 1fr;
+    grid-template-rows:auto auto auto;
+    grid-template-areas:
+      "horizon horizon"
+      "attitude gauges"
+      "model telemetry"
+      "control control"}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="topbar">
+    <div class="logo">
+      <span class="dot" id="liveDot"></span>
+      <span>EVTVL <b>Monochopter</b> V1</span>
+      <span class="sub">Flight Monitor</span>
+    </div>
+    <div class="status-pills">
+      <button class="theme-btn" id="themeBtn" title="Ganti tema terang/gelap">🌙</button>
+      <a href="/rc" class="rc-link" id="rcLink" title="Buka Remote Control">🎮 RC</a>
+      <div class="pill" id="pillLink"><span class="led"></span><span id="linkTxt">DEMO (belum tersambung)</span></div>
+      <div class="pill" id="pillArm"><span class="led"></span><span id="armTxt">DISARMED</span></div>
+      <div class="pill" id="pillMode"><span class="led"></span><span id="modeTxt">AUTO</span></div>
+      <div class="pill" id="pillBat"><span class="led"></span><span id="batTxt">-- V</span></div>
+      <div class="pill" id="pillHz"><span class="led"></span><span id="hzTxt">-- Hz</span></div>
+      <div class="pill" id="pillEsc"><span class="led"></span><span id="escTxt">ESC --</span></div>
+    </div>
+  </div>
+
+  <!-- ============ MAIN GRID ============ -->
+  <div class="grid">
+
+    <!-- Attitude indicator -->
+    <div class="panel" id="attitude">
+      <h2>Attitude<span class="badge">IMU / Kalman</span></h2>
+      <div class="body">
+        <div class="adi-wrap">
+          <canvas id="adi" width="220" height="220"></canvas>
+          <div class="adi-read">
+            <div class="cell"><div class="lbl">ROLL</div><div class="val" id="rRoll">0.0°</div></div>
+            <div class="cell"><div class="lbl">PITCH</div><div class="val" id="rPitch">0.0°</div></div>
+            <div class="cell"><div class="lbl">YAW</div><div class="val" id="rYaw">0.0°</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Primary flight display -->
+    <div class="panel" id="horizon">
+      <h2>Primary Flight Display<span class="badge" id="gforce">1.00 G</span></h2>
+      <div class="body">
+        <canvas id="pfd"></canvas>
+        <div class="pfd-overlay">
+          <div class="pfd-tag">SPD <span class="v" id="pfdSpd">0.0</span> m/s</div>
+          <div class="pfd-tag">ALT <span class="v" id="pfdAlt">0.00</span> m</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Angular rate gauges -->
+    <div class="panel" id="gauges">
+      <h2>Angular Rates<span class="badge">gyro rad/s</span></h2>
+      <div class="body">
+        <div class="gauge-grid">
+          <div class="gauge"><canvas id="gRoll" width="120" height="120"></canvas>
+            <div class="gl">ROLL RATE</div><div class="gv" id="vGRoll">0.0</div></div>
+          <div class="gauge"><canvas id="gPitch" width="120" height="120"></canvas>
+            <div class="gl">PITCH RATE</div><div class="gv" id="vGPitch">0.0</div></div>
+          <div class="gauge"><canvas id="gYaw" width="120" height="120"></canvas>
+            <div class="gl">YAW RATE</div><div class="gv" id="vGYaw">0.0</div></div>
+          <div class="gauge"><canvas id="gThr" width="120" height="120"></canvas>
+            <div class="gl">THROTTLE</div><div class="gv" id="vGThr">0%</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Telemetry -->
+    <div class="panel" id="telemetry">
+      <h2>Telemetry<span class="badge" id="tStamp">t=0</span></h2>
+      <div class="body">
+        <div class="telem" id="telemBody"><!-- filled by JS --></div>
+      </div>
+    </div>
+
+    <!-- 3D model -->
+    <div class="panel" id="model">
+      <h2>3D Vehicle View<span class="badge">live attitude</span></h2>
+      <div class="body">
+        <canvas id="three"></canvas>
+        <div class="model-hud">
+          R <b id="hudR">0°</b> &nbsp; P <b id="hudP">0°</b> &nbsp; Y <b id="hudY">0°</b>
+        </div>
+        <div class="model-trimhint" id="modelTrimHint">
+          Model tampak miring padahal wahana fisik tegak?
+          <a href="/rc">Setel Trim Attitude di RC →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control -->
+    <div class="panel" id="control">
+      <h2>Control<span class="badge">command uplink</span></h2>
+      <div class="body">
+        <div class="ctrl-block">
+          <div class="t">ARM / DISARM</div>
+          <div class="btn-row">
+            <button class="btn arm" id="btnArm">ARM</button>
+            <button class="btn disarm active" id="btnDisarm">DISARM</button>
+          </div>
+        </div>
+        <div class="ctrl-block">
+          <div class="t">FLIGHT MODE</div>
+          <div class="mode-row">
+            <div class="mode-btn active" data-mode="0">AUTO</div>
+            <div class="mode-btn" data-mode="1">SEMI</div>
+            <div class="mode-btn" data-mode="2">MANUAL</div>
+          </div>
+        </div>
+        <div class="ctrl-block">
+          <div class="t">WAYPOINT NAVIGATION (AUTO)</div>
+          <div class="wp-status" id="wpStatus">Belum ada misi dimuat</div>
+          <textarea id="wpInput" class="wp-input" rows="4"
+            placeholder="Satu waypoint per baris: x,y,z (meter)&#10;Contoh:&#10;0,5,1.5&#10;5,5,2.0&#10;5,0,1.5&#10;0,0,1.0"></textarea>
+          <div class="btn-row" style="margin-top:6px">
+            <button class="btn" id="btnWpLoad">LOAD WP</button>
+            <button class="btn arm" id="btnWpStart">START NAV</button>
+            <button class="btn disarm" id="btnWpStop">STOP</button>
+          </div>
+        </div>
+        <div class="ctrl-block">
+          <div class="t">ALTITUDE REFERENCE</div>
+          <div class="slider-row">
+            <input type="range" id="altRef" min="0" max="20" step="0.1" value="3.0">
+            <span class="sv" id="altRefVal">3.0 m</span>
+          </div>
+        </div>
+        <div class="ctrl-block">
+          <div class="t">THROTTLE</div>
+          <div class="slider-row">
+            <input type="range" id="thrSet" min="0" max="100" step="1" value="77">
+            <span class="sv" id="thrSetVal">77%</span>
+          </div>
+        </div>
+        <div class="ctrl-block">
+          <div class="t">SERVO DEFLECTION (°)</div>
+          <div class="servo-bars">
+            <div class="sbar"><div class="track"><div class="mid"></div><div class="fill" id="sb1"></div></div><div class="deg" id="sd1">0</div><div class="lbl">S1·0°</div></div>
+            <div class="sbar"><div class="track"><div class="mid"></div><div class="fill" id="sb2"></div></div><div class="deg" id="sd2">0</div><div class="lbl">S2·90°</div></div>
+            <div class="sbar"><div class="track"><div class="mid"></div><div class="fill" id="sb3"></div></div><div class="deg" id="sd3">0</div><div class="lbl">S3·180°</div></div>
+            <div class="sbar"><div class="track"><div class="mid"></div><div class="fill" id="sb4"></div></div><div class="deg" id="sd4">0</div><div class="lbl">S4·270°</div></div>
+          </div>
+        </div>
+
+        <div class="ctrl-block">
+          <div class="t">PID TUNING (LIVE)</div>
+          <div class="pid-cfg">
+            <div class="pid-head"><span></span><span>Kp</span><span>Ki</span><span>Kd</span><span></span></div>
+            <div class="pid-row" data-loop="roll">
+              <span class="pl">Roll</span>
+              <input type="number" class="pin kp" step="0.001" value="0.5345">
+              <input type="number" class="pin ki" step="0.01" value="0.05">
+              <input type="number" class="pin kd" step="0.001" value="0.2596">
+              <button class="pset">SET</button>
+            </div>
+            <div class="pid-row" data-loop="pitch">
+              <span class="pl">Pitch</span>
+              <input type="number" class="pin kp" step="0.001" value="0.5345">
+              <input type="number" class="pin ki" step="0.01" value="0.05">
+              <input type="number" class="pin kd" step="0.001" value="0.2596">
+              <button class="pset">SET</button>
+            </div>
+            <div class="pid-row" data-loop="yaw">
+              <span class="pl">Yaw</span>
+              <input type="number" class="pin kp" step="0.05" value="2.00">
+              <input type="number" class="pin ki" step="0.01" value="0.10">
+              <input type="number" class="pin kd" step="0.05" value="0.10">
+              <button class="pset">SET</button>
+            </div>
+            <div class="pid-row" data-loop="alt">
+              <span class="pl">Alt</span>
+              <input type="number" class="pin kp" step="0.001" value="0.1349">
+              <input type="number" class="pin ki" step="0.01" value="0.02">
+              <input type="number" class="pin kd" step="0.001" value="0.1619">
+              <button class="pset">SET</button>
+            </div>
+          </div>
+          <div class="pid-note" id="pidNote">Ubah nilai lalu tekan SET untuk kirim ke FC</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "/three.module.min.js" } }
+</script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

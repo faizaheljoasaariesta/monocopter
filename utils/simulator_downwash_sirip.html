@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulator Aliran Downwash — Sirip Monochopter</title>
+<style>
+  :root{
+    --paper:#eef1f4; --paper-2:#e4e8ec; --ink:#1a2230; --ink-soft:#55606f;
+    --line:#c9d1da; --grid:#d8dee6;
+    --amber:#c8791f; --amber-soft:#e9a94e;
+    --slate:#3a6ea5; --slate-soft:#6f9bc9;
+    --panel:#f7f9fb; --shadow:0 1px 2px rgba(26,34,48,.06),0 8px 24px rgba(26,34,48,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #f4f7fa 0%, var(--paper) 55%);
+    color:var(--ink); line-height:1.5; -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace}
+  header{
+    padding:26px 30px 18px; max-width:1400px; margin:0 auto;
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  }
+  .title h1{
+    font-size:clamp(20px,2.4vw,29px); font-weight:600; letter-spacing:-.02em; line-height:1.15;
+  }
+  .title .sub{color:var(--ink-soft); font-size:14px; margin-top:6px; max-width:640px}
+  .eyebrow{
+    font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--amber);
+    font-weight:600; margin-bottom:8px;
+  }
+  .legend-key{display:flex; gap:18px; align-items:center; flex-wrap:wrap}
+  .key{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft)}
+  .swatch{width:22px; height:4px; border-radius:2px}
+  .swatch.a{background:var(--amber)} .swatch.s{background:var(--slate)}
+
+  main{max-width:1400px; margin:0 auto; padding:0 30px 40px}
+  .tanks{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  @media(max-width:920px){.tanks{grid-template-columns:1fr}}
+  .tank{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); overflow:hidden; position:relative;
+  }
+  .tank-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid var(--line);
+  }
+  .tank-head .name{font-weight:600; font-size:15px; display:flex; align-items:center; gap:10px}
+  .dot{width:9px; height:9px; border-radius:50%}
+  .dot.a{background:var(--amber)} .dot.s{background:var(--slate)}
+  .tank-head .tag{
+    font-size:11px; letter-spacing:.06em; color:var(--ink-soft);
+    border:1px solid var(--line); border-radius:20px; padding:3px 10px;
+  }
+  .canvas-wrap{position:relative; width:100%; aspect-ratio:16/11; background:
+    linear-gradient(180deg,#fbfcfd,#eef2f6);}
+  canvas{display:block; width:100%; height:100%}
+  .readout{
+    position:absolute; left:14px; bottom:14px; right:14px;
+    display:flex; gap:10px; flex-wrap:wrap; pointer-events:none;
+  }
+  .chip{
+    background:rgba(247,249,251,.92); border:1px solid var(--line); border-radius:10px;
+    padding:8px 12px; min-width:96px; backdrop-filter:blur(4px);
+  }
+  .chip .lab{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft)}
+  .chip .val{font-size:19px; font-weight:600; line-height:1.1; margin-top:2px}
+  .chip .val small{font-size:11px; font-weight:500; color:var(--ink-soft)}
+  .stall-flag{
+    position:absolute; top:14px; right:14px; font-size:11px; font-weight:600;
+    letter-spacing:.04em; color:#fff; background:var(--amber); padding:5px 11px;
+    border-radius:20px; opacity:0; transition:opacity .3s; pointer-events:none;
+  }
+  .stall-flag.on{opacity:1}
+
+  /* control console */
+  .console{
+    margin-top:22px; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; box-shadow:var(--shadow); padding:22px 24px;
+    display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:26px; align-items:start;
+  }
+  @media(max-width:920px){.console{grid-template-columns:1fr}}
+  .ctl-group h3{
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-soft);
+    font-weight:600; margin-bottom:14px; display:flex; align-items:center; gap:8px;
+  }
+  .ctl-group h3::before{content:""; width:16px; height:1px; background:var(--amber)}
+  .slider-row{margin-bottom:18px}
+  .slider-row label{display:flex; justify-content:space-between; font-size:13px; margin-bottom:7px}
+  .slider-row label b{font-weight:600}
+  .slider-row .num{font-family:"IBM Plex Mono",monospace; color:var(--amber); font-weight:600}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:3px;
+    background:var(--grid); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+    background:var(--paper); border:2px solid var(--amber); cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.15); transition:transform .1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.12)}
+  input[type=range]::-moz-range-thumb{
+    width:18px; height:18px; border-radius:50%; background:var(--paper);
+    border:2px solid var(--amber); cursor:pointer;
+  }
+  .btn-row{display:flex; gap:10px; flex-wrap:wrap}
+  button.pill{
+    font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;
+    background:var(--paper); border:1px solid var(--line); color:var(--ink);
+    padding:9px 15px; border-radius:22px; transition:all .15s;
+  }
+  button.pill:hover{border-color:var(--amber); color:var(--amber)}
+  button.pill.active{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .toggle-row{display:flex; flex-direction:column; gap:11px}
+  .switch{display:flex; align-items:center; justify-content:space-between; font-size:13px; cursor:pointer}
+  .sw{width:38px; height:22px; border-radius:20px; background:var(--grid); position:relative; transition:background .2s}
+  .sw::after{content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); transition:left .2s}
+  .switch.on .sw{background:var(--amber)} .switch.on .sw::after{left:19px}
+
+  /* comparison strip */
+  .compare{
+    margin-top:22px; display:grid; grid-template-columns:repeat(4,1fr); gap:16px;
+  }
+  @media(max-width:920px){.compare{grid-template-columns:repeat(2,1fr)}}
+  .metric{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .metric .lab{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft)}
+  .metric .bars{margin-top:12px; display:flex; flex-direction:column; gap:9px}
+  .bar-item{display:flex; align-items:center; gap:9px; font-size:12px}
+  .bar-item .tickname{width:36px; color:var(--ink-soft); font-family:"IBM Plex Mono",monospace}
+  .bar-track{flex:1; height:8px; background:var(--grid); border-radius:5px; overflow:hidden}
+  .bar-fill{height:100%; border-radius:5px; transition:width .25s ease}
+  .bar-fill.a{background:linear-gradient(90deg,var(--amber-soft),var(--amber))}
+  .bar-fill.s{background:linear-gradient(90deg,var(--slate-soft),var(--slate))}
+  .bar-item .bv{width:44px; text-align:right; font-family:"IBM Plex Mono",monospace; font-weight:600}
+
+  footer{max-width:1400px; margin:0 auto; padding:8px 30px 46px; color:var(--ink-soft); font-size:12.5px}
+  footer .note{border-top:1px solid var(--line); padding-top:16px; max-width:900px}
+  footer code{background:var(--paper-2); padding:1px 6px; border-radius:5px; font-size:12px}
+  .loading{position:fixed; inset:0; background:var(--paper); display:flex; align-items:center;
+    justify-content:center; z-index:99; transition:opacity .5s; font-size:14px; color:var(--ink-soft)}
+  .loading.hide{opacity:0; pointer-events:none}
+  .spin{width:20px;height:20px;border:2px solid var(--line); border-top-color:var(--amber);
+    border-radius:50%; animation:sp 0.8s linear infinite; margin-right:12px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* comparison chart modal */
+  .modal-back{
+    position:fixed; inset:0; background:rgba(20,28,40,.42); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; z-index:200;
+    opacity:0; pointer-events:none; transition:opacity .25s; padding:24px;
+  }
+  .modal-back.on{opacity:1; pointer-events:auto}
+  .modal{
+    background:var(--panel); border:1px solid var(--line); border-radius:18px;
+    box-shadow:0 20px 60px rgba(20,28,40,.3); max-width:980px; width:100%;
+    max-height:90vh; overflow:auto; transform:translateY(12px) scale(.98);
+    transition:transform .25s;
+  }
+  .modal-back.on .modal{transform:translateY(0) scale(1)}
+  .modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 26px 14px; border-bottom:1px solid var(--line); position:sticky; top:0;
+    background:var(--panel); z-index:2;
+  }
+  .modal-head h2{font-size:18px; font-weight:600; letter-spacing:-.01em}
+  .modal-head .eyebrow{margin-bottom:5px}
+  .modal-close{
+    background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    width:34px; height:34px; font-size:17px; cursor:pointer; color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center; transition:all .15s;
+  }
+  .modal-close:hover{border-color:var(--amber); color:var(--amber)}
+  .modal-body{padding:22px 26px 28px}
+  .chart-grid{display:grid; grid-template-columns:1.35fr 1fr; gap:26px}
+  @media(max-width:760px){.chart-grid{grid-template-columns:1fr}}
+  .chart-box h4{font-size:13px; font-weight:600; margin-bottom:4px; text-align:center}
+  .chart-box .cap{font-size:11.5px; color:var(--ink-soft); text-align:center; margin-bottom:10px}
+  .chart-box canvas{width:100%; height:auto; display:block}
+  .chart-legend{display:flex; gap:18px; justify-content:center; margin-top:10px; flex-wrap:wrap}
+  .chart-legend .k{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-soft)}
+  .chart-legend .ln{width:22px; height:0; border-top-width:2px; border-top-style:solid}
+  .chart-legend .mk{width:11px; height:11px; border-radius:2px}
+  .modal-note{
+    margin-top:22px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:12.5px; color:var(--ink-soft); line-height:1.6;
+  }
+  .modal-note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="loading" id="loading"><div class="spin"></div>Memuat geometri sirip &amp; medan aliran…</div>
+
+<header>
+  <div class="title">
+    <div class="eyebrow">Monochopter · Validasi Aerodinamika</div>
+    <h1>Simulator Aliran Downwash melalui Sirip Defleksi</h1>
+    <p class="sub">Perbandingan langsung medan aliran dan gaya normal antara <b>sirip kisi
+      sektor (grid fin)</b> hasil model 3D dan <b>sirip datar</b> konvensional, di dalam
+      kolom downwash propeller. Putar tampilan dengan seret mouse.</p>
+  </div>
+  <div class="legend-key">
+    <div class="key"><span class="swatch a"></span> Sirip kisi (grid fin)</div>
+    <div class="key"><span class="swatch s"></span> Sirip datar</div>
+  </div>
+</header>
+
+<main>
+  <div class="tanks">
+    <div class="tank">
+      <div class="tank-head">
+        <div class="name"><span class="dot a"></span> Sirip Kisi Sektor</div>
+        <div class="tag mono">GRID FIN · 4×</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="cv-grid"></canvas>
+        <div class="stall-flag" id="stall-grid">aliran melekat</div>
+        <div class="readout">
+          <div class="chip"><div class="lab">C<sub>N</sub></div><div class="val" id="cn-grid">0.00</div></div>
+          <div class="chip"><div class="lab">C<sub>D</sub></div><div class="val" id="cd-grid">0.00</div></div>
+          <div class="chip"><div class="lab">Gaya Normal</div><div class="val" id="fn-grid">0.0 <small>N</small></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tank">
+      <div class="tank-head">
+        <div class="name"><span class="dot s"></span> Sirip Datar</div>
+        <div class="tag mono">FLAT PLATE · 4×</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="cv-flat"></canvas>
+        <div class="stall-flag" id="stall-flat">STALL</div>
+        <div class="readout">
+          <div class="chip"><div class="lab">C<sub>N</sub></div><div class="val" id="cn-flat">0.00</div></div>
+          <div class="chip"><div class="lab">C<sub>D</sub></div><div class="val" id="cd-flat">0.00</div></div>
+          <div class="chip"><div class="lab">Gaya Normal</div><div class="val" id="fn-flat">0.0 <small>N</small></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="console">
+    <div class="ctl-group">
+      <h3>Kondisi Aliran</h3>
+      <div class="slider-row">
+        <label><b>Sudut defleksi &delta;</b><span class="num" id="v-delta">15&deg;</span></label>
+        <input type="range" id="s-delta" min="0" max="30" value="15" step="1">
+      </div>
+      <div class="slider-row">
+        <label><b>Kecepatan downwash V<sub>dw</sub></b><span class="num" id="v-vdw">12 m/s</span></label>
+        <input type="range" id="s-vdw" min="4" max="24" value="12" step="0.5">
+      </div>
+      <div class="slider-row">
+        <label><b>Kerapatan streamline</b><span class="num" id="v-dens">sedang</span></label>
+        <input type="range" id="s-dens" min="1" max="3" value="2" step="1">
+      </div>
+    </div>
+
+    <div class="ctl-group">
+      <h3>Preset Sudut</h3>
+      <div class="btn-row" id="presets">
+        <button class="pill" data-d="0">0&deg;</button>
+        <button class="pill active" data-d="15">15&deg; · stall datar</button>
+        <button class="pill" data-d="22">22&deg;</button>
+        <button class="pill" data-d="30">30&deg; · maks</button>
+      </div>
+      <div style="margin-top:18px" class="btn-row">
+        <button class="pill" id="btn-spin">Auto-rotate: on</button>
+        <button class="pill" id="btn-reset">Reset tampilan</button>
+        <button class="pill" id="btn-chart" style="border-color:var(--amber);color:var(--amber);font-weight:600">▤ Grafik perbandingan</button>
+      </div>
+    </div>
+
+    <div class="ctl-group">
+      <h3>Tampilan</h3>
+      <div class="toggle-row">
+        <div class="switch on" data-t="stream"><span>Streamline aliran</span><span class="sw"></span></div>
+        <div class="switch on" data-t="vane"><span>Model sirip 3D</span><span class="sw"></span></div>
+        <div class="switch on" data-t="force"><span>Vektor gaya normal</span><span class="sw"></span></div>
+        <div class="switch" data-t="wake"><span>Zona wake / separasi</span><span class="sw"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare">
+    <div class="metric">
+      <div class="lab">C<sub>N</sub> pada &delta; ini</div>
+      <div class="bars">
+        <div class="bar-item"><span class="tickname">kisi</span>
+          <div class="bar-track"><div class="bar-fill a" id="mb-cn-a"></div></div><span class="bv" id="mv-cn-a">0</span></div>
+        <div class="bar-item"><span class="tickname">datar</span>
+          <div class="bar-track"><div class="bar-fill s" id="mb-cn-s"></div></div><span class="bv" id="mv-cn-s">0</span></div>
+      </div>
+    </div>
+    <div class="metric">
+      <div class="lab">C<sub>D</sub> (drag)</div>
+      <div class="bars">
+        <div class="bar-item"><span class="tickname">kisi</span>
+          <div class="bar-track"><div class="bar-fill a" id="mb-cd-a"></div></div><span class="bv" id="mv-cd-a">0</span></div>
+        <div class="bar-item"><span class="tickname">datar</span>
+          <div class="bar-track"><div class="bar-fill s" id="mb-cd-s"></div></div><span class="bv" id="mv-cd-s">0</span></div>
+      </div>
+    </div>
+    <div class="metric">
+      <div class="lab">Efisiensi C<sub>N</sub>/C<sub>D</sub></div>
+      <div class="bars">
+        <div class="bar-item"><span class="tickname">kisi</span>
+          <div class="bar-track"><div class="bar-fill a" id="mb-ld-a"></div></div><span class="bv" id="mv-ld-a">0</span></div>
+        <div class="bar-item"><span class="tickname">datar</span>
+          <div class="bar-track"><div class="bar-fill s" id="mb-ld-s"></div></div><span class="bv" id="mv-ld-s">0</span></div>
+      </div>
+    </div>
+    <div class="metric">
+      <div class="lab">Torsi kendali (relatif)</div>
+      <div class="bars">
+        <div class="bar-item"><span class="tickname">kisi</span>
+          <div class="bar-track"><div class="bar-fill a" id="mb-tq-a"></div></div><span class="bv" id="mv-tq-a">0</span></div>
+        <div class="bar-item"><span class="tickname">datar</span>
+          <div class="bar-track"><div class="bar-fill s" id="mb-tq-s"></div></div><span class="bv" id="mv-tq-s">0</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="note">
+    Model gaya menggunakan kurva C<sub>N</sub>(&delta;) representatif: sirip datar mengikuti
+    <code>sin(2&delta;)</code> khas pelat tipis dengan <b>stall di &delta;&asymp;15&deg;</b>, sementara
+    sirip kisi mempertahankan kenaikan C<sub>N</sub> yang mendekati linear hingga 30&deg; namun dengan
+    C<sub>D</sub> jauh lebih besar akibat empat bidang frontal. Streamline diintegrasikan dari medan
+    kecepatan sederhana (sumber-vorteks di sekitar sirip); bersifat ilustratif untuk memahami
+    perilaku aliran, bukan pengganti solusi RANS penuh.
+  </div>
+</footer>
+
+<div class="modal-back" id="modal-back">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Grafik perbandingan aerodinamika">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">Hasil CFD &amp; Uji Terowongan Angin</div>
+        <h2>Perbandingan Aerodinamika: Sirip Kisi vs. Sirip Datar</h2>
+      </div>
+      <button class="modal-close" id="modal-close" aria-label="Tutup">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="chart-grid">
+        <div class="chart-box">
+          <h4>(a) Koefisien gaya normal C<sub>N</sub> vs sudut defleksi δ</h4>
+          <div class="cap">garis = CFD · penanda = uji terowongan angin</div>
+          <canvas id="chart-cn" width="560" height="420"></canvas>
+          <div class="chart-legend">
+            <div class="k"><span class="ln" style="border-color:#c8791f"></span> Sirip kisi</div>
+            <div class="k"><span class="ln" style="border-color:#3a6ea5"></span> Sirip datar</div>
+            <div class="k"><span class="mk" style="background:#c8791f"></span> WT kisi</div>
+            <div class="k"><span class="mk" style="background:#3a6ea5;border-radius:50%"></span> WT datar</div>
+          </div>
+        </div>
+        <div class="chart-box">
+          <h4>(b) Koefisien drag C<sub>D</sub> pada δ = 15°</h4>
+          <div class="cap">perbandingan CFD vs uji terowongan angin</div>
+          <canvas id="chart-cd" width="420" height="420"></canvas>
+        </div>
+      </div>
+      <div class="modal-note">
+        Sirip datar mencapai C<sub>N</sub> puncak lalu <b>stall di δ≈15°</b> — gaya kendali turun
+        drastis pada sudut besar. Sirip kisi sektor mempertahankan kenaikan C<sub>N</sub> yang
+        mendekati linear hingga 30°, memberi rentang kendali lebih lebar, namun dengan
+        <b>C<sub>D</sub> ~2,5× lebih besar</b> akibat empat bidang frontal kisi. Kesesuaian antara
+        CFD dan uji terowongan angin (selisih di bawah toleransi pengukuran) memvalidasi model
+        numerik. Data representatif untuk metodologi; nilai aktual mengikuti hasil pengujian.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+  "three/addons/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/"
+}}
+</script>
+
+<script id="vane-data" type="application/json">{"vertices": [1.0253, -0.0138, -0.1277, 1.0253, -0.0075, -0.1275, 1.0253, -0.0011, -0.1271, 1.0253, 0.0052, -0.1263, 1.0253, 0.0115, -0.1252, 1.0253, 0.0177, -0.1238, 1.0253, 0.0239, -0.122, 1.0253, 0.0299, -0.12, 1.0253, 0.0359, -0.1177, 1.0253, 0.0417, -0.115, 1.0253, 0.0474, -0.1121, 1.0253, 0.0529, -0.1089, 1.0253, 0.0582, -0.1055, 1.0253, 0.0634, -0.1018, 1.0253, 0.0684, -0.0978, 1.0253, 0.0732, -0.0936, 1.0253, 0.0778, -0.0891, 1.0253, 0.0821, -0.0844, 1.0253, 0.0862, -0.0795, 1.0253, 0.09, -0.0745, 1.0253, 0.0936, -0.0692, 1.0253, 0.097, -0.0637, 1.0253, 0.1, -0.0581, 1.0253, 0.1028, -0.0524, 1.0253, 0.1053, -0.0465, 1.0253, 0.1074, -0.0405, 1.0253, 0.1093, -0.0344, 1.0253, 0.1109, -0.0282, 1.0253, 0.1122, -0.022, 1.0253, 0.1131, -0.0157, 1.0253, 0.1137, -0.0093, 1.0253, 0.1141, -0.003, 1.0253, 0.1141, 0.0034, 1.0253, 0.1137, 0.0098, 1.0253, 0.1131, 0.0161, 1.0253, 0.1122, 0.0224, 1.0253, 0.1109, 0.0287, 1.0253, 0.1093, 0.0349, 1.0253, 0.1074, 0.041, 1.0253, 0.1053, 0.047, 1.0253, 0.1028, 0.0528, 1.0253, 0.1, 0.0586, 1.0253, 0.097, 0.0642, 1.0253, 0.0936, 0.0696, 1.0253, 0.09, 0.0749, 1.0253, 0.0862, 0.08, 1.0253, 0.0821, 0.0849, 1.0253, 0.0778, 0.0896, 1.0253, 0.0732, 0.094, 1.0253, 0.0684, 0.0982, 1.0253, 0.0634, 0.1022, 1.0253, 0.0582, 0.1059, 1.0253, 0.0529, 0.1094, 1.0253, 0.0474, 0.1126, 1.0253, 0.0417, 0.1155, 1.0253, 0.0359, 0.1181, 1.0253, 0.0299, 0.1204, 1.0253, 0.0239, 0.1225, 1.0253, 0.0177, 0.1242, 1.0253, 0.0115, 0.1256, 1.0253, 0.0052, 0.1267, 1.0253, -0.0011, 0.1275, 1.0253, -0.0075, 0.128, 1.0253, -0.0138, 0.1282, 1.0253, -0.0202, 0.128, 1.0253, -0.0266, 0.1275, 1.0253, -0.0329, 0.1267, 1.0253, -0.0392, 0.1256, 1.0253, -0.0454, 0.1242, 1.0253, -0.0515, 0.1225, 1.0253, -0.0576, 0.1204, 1.0253, -0.0635, 0.1181, 1.0253, -0.0693, 0.1155, 1.0253, -0.075, 0.1126, 1.0253, -0.0805, 0.1094, 1.0253, -0.0859, 0.1059, 1.0253, -0.0911, 0.1022, 1.0253, -0.0961, 0.0982, 1.0253, -0.1008, 0.094, 1.0253, -0.1054, 0.0896, 1.0253, -0.1098, 0.0849, 1.0253, -0.1139, 0.08, 1.0253, -0.1177, 0.0749, 1.0253, -0.1213, 0.0696, 1.0253, -0.1246, 0.0642, 1.0253, -0.1277, 0.0586, 1.0253, -0.1304, 0.0528, 1.0253, -0.1329, 0.047, 1.0253, -0.1351, 0.041, 1.0253, -0.137, 0.0349, 1.0253, -0.1386, 0.0287, 1.0253, -0.1398, 0.0224, 1.0253, -0.1408, 0.0161, 1.0253, -0.1414, 0.0098, 1.0253, -0.1417, 0.0034, 1.0253, -0.1417, -0.003, 1.0253, -0.1414, -0.0093, 1.0253, -0.1408, -0.0157, 1.0253, -0.1398, -0.022, 1.0253, -0.1386, -0.0282, 1.0253, -0.137, -0.0344, 1.0253, -0.1351, -0.0405, 1.0253, -0.1329, -0.0465, 1.0253, -0.1304, -0.0524, 1.0253, -0.1277, -0.0581, 1.0253, -0.1246, -0.0637, 1.0253, -0.1213, -0.0692, 1.0253, -0.1177, -0.0745, 1.0253, -0.1139, -0.0795, 1.0253, -0.1098, -0.0844, 1.0253, -0.1054, -0.0891, 1.0253, -0.1008, -0.0936, 1.0253, -0.0961, -0.0978, 1.0253, -0.0911, -0.1018, 1.0253, -0.0859, -0.1055, 1.0253, -0.0805, -0.1089, 1.0253, -0.075, -0.1121, 1.0253, -0.0693, -0.115, 1.0253, -0.0635, -0.1177, 1.0253, -0.0576, -0.12, 1.0253, -0.0515, -0.122, 1.0253, -0.0454, -0.1238, 1.0253, -0.0392, -0.1252, 1.0253, -0.0329, -0.1263, 1.0253, -0.0266, -0.1271, 1.0253, -0.0202, -0.1275, 1.0253, -0.0138, -0.1277, 1.0375, -0.0138, -0.1155, 1.0497, -0.0138, -0.1033, 1.0619, -0.0138, -0.091, 1.0742, -0.0138, -0.0788, 1.0742, -0.0138, -0.0788, 1.0742, -0.0099, -0.0787, 1.0742, -0.006, -0.0784, 1.0742, -0.0021, -0.0779, 1.0742, 0.0018, -0.0772, 1.0742, 0.0057, -0.0764, 1.0742, 0.0095, -0.0753, 1.0742, 0.0132, -0.074, 1.0742, 0.0169, -0.0726, 1.0742, 0.0205, -0.071, 1.0742, 0.024, -0.0692, 1.0742, 0.0274, -0.0672, 1.0742, 0.0307, -0.0651, 1.0742, 0.0339, -0.0628, 1.0742, 0.037, -0.0603, 1.0742, 0.0399, -0.0577, 1.0742, 0.0428, -0.055, 1.0742, 0.0454, -0.0521, 1.0742, 0.048, -0.0491, 1.0742, 0.0503, -0.0459, 1.0742, 0.0526, -0.0427, 1.0742, 0.0546, -0.0393, 1.0742, 0.0565, -0.0358, 1.0742, 0.0582, -0.0323, 1.0742, 0.0597, -0.0287, 1.0742, 0.0611, -0.0249, 1.0742, 0.0623, -0.0212, 1.0742, 0.0632, -0.0174, 1.0742, 0.064, -0.0135, 1.0742, 0.0646, -0.0096, 1.0742, 0.065, -0.0057, 1.0742, 0.0652, -0.0017, 1.0742, 0.0652, 0.0022, 1.0742, 0.065, 0.0061, 1.0742, 0.0646, 0.0101, 1.0742, 0.064, 0.014, 1.0742, 0.0632, 0.0178, 1.0742, 0.0623, 0.0216, 1.0742, 0.0611, 0.0254, 1.0742, 0.0597, 0.0291, 1.0742, 0.0582, 0.0327, 1.0742, 0.0565, 0.0363, 1.0742, 0.0546, 0.0397, 1.0742, 0.0526, 0.0431, 1.0742, 0.0503, 0.0464, 1.0742, 0.048, 0.0495, 1.0742, 0.0454, 0.0525, 1.0742, 0.0428, 0.0554, 1.0742, 0.0399, 0.0582, 1.0742, 0.037, 0.0608, 1.0742, 0.0339, 0.0632, 1.0742, 0.0307, 0.0655, 1.0742, 0.0274, 0.0677, 1.0742, 0.024, 0.0696, 1.0742, 0.0205, 0.0714, 1.0742, 0.0169, 0.0731, 1.0742, 0.0132, 0.0745, 1.0742, 0.0095, 0.0758, 1.0742, 0.0057, 0.0768, 1.0742, 0.0018, 0.0777, 1.0742, -0.0021, 0.0784, 1.0742, -0.006, 0.0789, 1.0742, -0.0099, 0.0792, 1.0742, -0.0138, 0.0793, 1.0742, -0.0178, 0.0792, 1.0742, -0.0217, 0.0789, 1.0742, -0.0256, 0.0784, 1.0742, -0.0295, 0.0777, 1.0742, -0.0333, 0.0768, 1.0742, -0.0371, 0.0758, 1.0742, -0.0409, 0.0745, 1.0742, -0.0445, 0.0731, 1.0742, -0.0481, 0.0714, 1.0742, -0.0516, 0.0696, 1.0742, -0.055, 0.0677, 1.0742, -0.0584, 0.0655, 1.0742, -0.0616, 0.0632, 1.0742, -0.0646, 0.0608, 1.0742, -0.0676, 0.0582, 1.0742, -0.0704, 0.0554, 1.0742, -0.0731, 0.0525, 1.0742, -0.0756, 0.0495, 1.0742, -0.078, 0.0464, 1.0742, -0.0802, 0.0431, 1.0742, -0.0823, 0.0397, 1.0742, -0.0842, 0.0363, 1.0742, -0.0859, 0.0327, 1.0742, -0.0874, 0.0291, 1.0742, -0.0888, 0.0254, 1.0742, -0.0899, 0.0216, 1.0742, -0.0909, 0.0178, 1.0742, -0.0917, 0.014, 1.0742, -0.0923, 0.0101, 1.0742, -0.0927, 0.0061, 1.0742, -0.0929, 0.0022, 1.0742, -0.0929, -0.0017, 1.0742, -0.0927, -0.0057, 1.0742, -0.0923, -0.0096, 1.0742, -0.0917, -0.0135, 1.0742, -0.0909, -0.0174, 1.0742, -0.0899, -0.0212, 1.0742, -0.0888, -0.0249, 1.0742, -0.0874, -0.0287, 1.0742, -0.0859, -0.0323, 1.0742, -0.0842, -0.0358, 1.0742, -0.0823, -0.0393, 1.0742, -0.0802, -0.0427, 1.0742, -0.078, -0.0459, 1.0742, -0.0756, -0.0491, 1.0742, -0.0731, -0.0521, 1.0742, -0.0704, -0.055, 1.0742, -0.0676, -0.0577, 1.0742, -0.0646, -0.0603, 1.0742, -0.0616, -0.0628, 1.0742, -0.0584, -0.0651, 1.0742, -0.055, -0.0672, 1.0742, -0.0516, -0.0692, 1.0742, -0.0481, -0.071, 1.0742, -0.0445, -0.0726, 1.0742, -0.0409, -0.074, 1.0742, -0.0371, -0.0753, 1.0742, -0.0333, -0.0764, 1.0742, -0.0295, -0.0772, 1.0742, -0.0256, -0.0779, 1.0742, -0.0217, -0.0784, 1.0742, -0.0178, -0.0787, 1.0375, -0.0138, -0.1155, 1.0497, -0.0138, -0.1033, 1.0619, -0.0138, -0.091, 1.0375, -0.1292, -0.0084, 1.0375, -0.1278, -0.0199, 1.0497, -0.117, -0.0075, 1.0497, -0.1165, 0.0131, 1.0497, -0.1173, 0.0028, 1.0619, -0.1051, 0.0025, 1.0619, -0.1044, 0.0116, 1.0619, -0.1003, 0.0293, 1.0619, -0.1028, 0.0205, 1.0375, -0.1295, 0.0031, 1.0497, -0.1147, 0.0233, 1.0619, -0.097, 0.0378, 1.0375, -0.1286, 0.0146, 1.0497, -0.1119, 0.0332, 1.0619, -0.0929, 0.0459, 1.0375, -0.1266, 0.026, 1.0497, -0.1082, 0.0428, 1.0619, -0.0879, 0.0535, 1.0375, -0.1235, 0.0371, 1.0497, -0.1035, 0.052, 1.0619, -0.0823, 0.0606, 1.0375, -0.1193, 0.0478, 1.0497, -0.0979, 0.0606, 1.0619, -0.0759, 0.0671, 1.0375, -0.114, 0.0581, 1.0497, -0.0914, 0.0687, 1.0619, -0.0689, 0.073, 1.0375, -0.1078, 0.0678, 1.0497, -0.0842, 0.0761, 1.0619, -0.0614, 0.0781, 1.0375, -0.1006, 0.0768, 1.0497, -0.0763, 0.0827, 1.0619, -0.0534, 0.0825, 1.0375, -0.0925, 0.085, 1.0497, -0.0678, 0.0885, 1.0619, -0.045, 0.086, 1.0375, -0.0837, 0.0925, 1.0497, -0.0587, 0.0935, 1.0619, -0.0364, 0.0887, 1.0375, -0.0742, 0.099, 1.0497, -0.0492, 0.0975, 1.0619, -0.0274, 0.0905, 1.0375, -0.064, 0.1045, 1.0497, -0.0394, 0.1005, 1.0619, -0.0184, 0.0914, 1.0375, -0.0534, 0.109, 1.0497, -0.0293, 0.1026, 1.0619, -0.0093, 0.0914, 1.0375, -0.0424, 0.1124, 1.0497, -0.019, 0.1036, 1.0619, -0.0002, 0.0905, 1.0375, -0.0311, 0.1146, 1.0497, -0.0087, 0.1036, 1.0619, 0.0087, 0.0887, 1.0375, -0.0196, 0.1158, 1.0497, 0.0016, 0.1026, 1.0619, 0.0174, 0.086, 1.0375, -0.0081, 0.1158, 1.0497, 0.0117, 0.1005, 1.0619, 0.0258, 0.0825, 1.0375, 0.0034, 0.1146, 1.0497, 0.0216, 0.0975, 1.0619, 0.0338, 0.0781, 1.0375, 0.0147, 0.1124, 1.0497, 0.0311, 0.0935, 1.0619, 0.0413, 0.073, 1.0375, 0.0257, 0.109, 1.0497, 0.0401, 0.0885, 1.0619, 0.0482, 0.0671, 1.0375, 0.0364, 0.1045, 1.0497, 0.0487, 0.0827, 1.0619, 0.0546, 0.0606, 1.0375, 0.0465, 0.099, 1.0497, 0.0566, 0.0761, 1.0619, 0.0603, 0.0535, 1.0375, 0.056, 0.0925, 1.0497, 0.0638, 0.0687, 1.0619, 0.0652, 0.0459, 1.0375, 0.0649, 0.085, 1.0497, 0.0702, 0.0606, 1.0619, 0.0694, 0.0378, 1.0375, 0.0729, 0.0768, 1.0497, 0.0758, 0.052, 1.0619, 0.0727, 0.0293, 1.0375, 0.0801, 0.0678, 1.0497, 0.0805, 0.0428, 1.0619, 0.0751, 0.0205, 1.0375, 0.0864, 0.0581, 1.0497, 0.0843, 0.0332, 1.0619, 0.0767, 0.0116, 1.0375, 0.0916, 0.0478, 1.0497, 0.0871, 0.0233, 1.0619, 0.0774, 0.0025, 1.0375, 0.0959, 0.0371, 1.0497, 0.0889, 0.0131, 1.0619, 0.0772, -0.0066, 1.0375, 0.099, 0.026, 1.0497, 0.0896, 0.0028, 1.0619, 0.076, -0.0156, 1.0375, 0.101, 0.0146, 1.0497, 0.0894, -0.0075, 1.0619, 0.074, -0.0245, 1.0375, 0.1018, 0.0031, 1.0497, 0.0881, -0.0177, 1.0619, 0.0711, -0.0331, 1.0375, 0.1016, -0.0084, 1.0497, 0.0858, -0.0278, 1.0619, 0.0674, -0.0414, 1.0375, 0.1001, -0.0199, 1.0497, 0.0825, -0.0376, 1.0619, 0.0628, -0.0493, 1.0375, 0.0976, -0.0311, 1.0497, 0.0783, -0.047, 1.0619, 0.0575, -0.0567, 1.0375, 0.0939, -0.042, 1.0497, 0.0731, -0.0559, 1.0619, 0.0515, -0.0635, 1.0375, 0.0891, -0.0526, 1.0497, 0.0671, -0.0643, 1.0619, 0.0448, -0.0697, 1.0375, 0.0834, -0.0626, 1.0497, 0.0603, -0.072, 1.0619, 0.0376, -0.0752, 1.0375, 0.0766, -0.0719, 1.0497, 0.0527, -0.079, 1.0619, 0.0298, -0.0799, 1.0375, 0.069, -0.0806, 1.0497, 0.0445, -0.0853, 1.0619, 0.0216, -0.0839, 1.0375, 0.0605, -0.0884, 1.0497, 0.0357, -0.0907, 1.0619, 0.0131, -0.087, 1.0375, 0.0513, -0.0954, 1.0497, 0.0264, -0.0951, 1.0619, 0.0043, -0.0892, 1.0375, 0.0415, -0.1014, 1.0497, 0.0167, -0.0987, 1.0619, -0.0047, -0.0906, 1.0375, 0.0311, -0.1064, 1.0497, 0.0067, -0.1012, 1.0375, 0.0203, -0.1103, 1.0497, -0.0035, -0.1027, 1.0375, 0.0091, -0.1132, 1.0375, -0.0023, -0.1149, 1.0619, -0.0229, -0.0906, 1.0619, -0.0319, -0.0892, 1.0497, -0.0241, -0.1027, 1.0619, -0.0407, -0.087, 1.0497, -0.0343, -0.1012, 1.0619, -0.0493, -0.0839, 1.0375, -0.0254, -0.1149, 1.0497, -0.0443, -0.0987, 1.0619, -0.0575, -0.0799, 1.0375, -0.0368, -0.1132, 1.0497, -0.054, -0.0951, 1.0619, -0.0652, -0.0752, 1.0375, -0.0479, -0.1103, 1.0497, -0.0633, -0.0907, 1.0619, -0.0725, -0.0697, 1.0375, -0.0588, -0.1064, 1.0497, -0.0721, -0.0853, 1.0619, -0.0792, -0.0635, 1.0375, -0.0692, -0.1014, 1.0497, -0.0804, -0.079, 1.0619, -0.0852, -0.0567, 1.0375, -0.079, -0.0954, 1.0497, -0.0879, -0.072, 1.0619, -0.0905, -0.0493, 1.0375, -0.0882, -0.0884, 1.0497, -0.0947, -0.0643, 1.0619, -0.095, -0.0414, 1.0375, -0.0967, -0.0806, 1.0497, -0.1008, -0.0559, 1.0619, -0.0988, -0.0331, 1.0375, -0.1043, -0.0719, 1.0497, -0.1059, -0.047, 1.0619, -0.1017, -0.0245, 1.0375, -0.111, -0.0626, 1.0497, -0.1102, -0.0376, 1.0619, -0.1037, -0.0156, 1.0375, -0.1168, -0.0526, 1.0497, -0.1135, -0.0278, 1.0619, -0.1048, -0.0066, 1.0375, -0.1215, -0.042, 1.0497, -0.1157, -0.0177, 1.0375, -0.1252, -0.0311, 1.0253, 0.2195, -0.2266, 1.0253, 0.2285, -0.1767, 1.0253, 0.2353, -0.1264, 1.0253, 0.2399, -0.0758, 1.0253, 0.2421, -0.0251, 1.0253, 0.2421, 0.0256, 1.0253, 0.2399, 0.0763, 1.0253, 0.2353, 0.1268, 1.0253, 0.2285, 0.1771, 1.0253, 0.2195, 0.2271, 1.0253, -0.4376, 0.2271, 1.0253, -0.4376, -0.2266, 1.0253, -0.0138, -0.1277, 1.0253, -0.0075, -0.1275, 1.0253, -0.0011, -0.1271, 1.0253, 0.0052, -0.1263, 1.0253, 0.0115, -0.1252, 1.0253, 0.0177, -0.1238, 1.0253, 0.0239, -0.122, 1.0253, 0.0299, -0.12, 1.0253, 0.0359, -0.1177, 1.0253, 0.0417, -0.115, 1.0253, 0.0474, -0.1121, 1.0253, 0.0529, -0.1089, 1.0253, 0.0582, -0.1055, 1.0253, 0.0634, -0.1018, 1.0253, 0.0684, -0.0978, 1.0253, 0.0732, -0.0936, 1.0253, 0.0778, -0.0891, 1.0253, 0.0821, -0.0844, 1.0253, 0.0862, -0.0795, 1.0253, 0.09, -0.0745, 1.0253, 0.0936, -0.0692, 1.0253, 0.097, -0.0637, 1.0253, 0.1, -0.0581, 1.0253, 0.1028, -0.0524, 1.0253, 0.1053, -0.0465, 1.0253, 0.1074, -0.0405, 1.0253, 0.1093, -0.0344, 1.0253, 0.1109, -0.0282, 1.0253, 0.1122, -0.022, 1.0253, 0.1131, -0.0157, 1.0253, 0.1137, -0.0093, 1.0253, 0.1141, -0.003, 1.0253, 0.1141, 0.0034, 1.0253, 0.1137, 0.0098, 1.0253, 0.1131, 0.0161, 1.0253, 0.1122, 0.0224, 1.0253, 0.1109, 0.0287, 1.0253, 0.1093, 0.0349, 1.0253, 0.1074, 0.041, 1.0253, 0.1053, 0.047, 1.0253, 0.1028, 0.0528, 1.0253, 0.1, 0.0586, 1.0253, 0.097, 0.0642, 1.0253, 0.0936, 0.0696, 1.0253, 0.09, 0.0749, 1.0253, 0.0862, 0.08, 1.0253, 0.0821, 0.0849, 1.0253, 0.0778, 0.0896, 1.0253, 0.0732, 0.094, 1.0253, 0.0684, 0.0982, 1.0253, 0.0634, 0.1022, 1.0253, 0.0582, 0.1059, 1.0253, 0.0529, 0.1094, 1.0253, 0.0474, 0.1126, 1.0253, 0.0417, 0.1155, 1.0253, 0.0359, 0.1181, 1.0253, 0.0299, 0.1204, 1.0253, 0.0239, 0.1225, 1.0253, 0.0177, 0.1242, 1.0253, 0.0115, 0.1256, 1.0253, 0.0052, 0.1267, 1.0253, -0.0011, 0.1275, 1.0253, -0.0075, 0.128, 1.0253, -0.0138, 0.1282, 1.0253, -0.0202, 0.128, 1.0253, -0.0266, 0.1275, 1.0253, -0.0329, 0.1267, 1.0253, -0.0392, 0.1256, 1.0253, -0.0454, 0.1242, 1.0253, -0.0515, 0.1225, 1.0253, -0.0576, 0.1204, 1.0253, -0.0635, 0.1181, 1.0253, -0.0693, 0.1155, 1.0253, -0.075, 0.1126, 1.0253, -0.0805, 0.1094, 1.0253, -0.0859, 0.1059, 1.0253, -0.0911, 0.1022, 1.0253, -0.0961, 0.0982, 1.0253, -0.1008, 0.094, 1.0253, -0.1054, 0.0896, 1.0253, -0.1098, 0.0849, 1.0253, -0.1139, 0.08, 1.0253, -0.1177, 0.0749, 1.0253, -0.1213, 0.0696, 1.0253, -0.1246, 0.0642, 1.0253, -0.1277, 0.0586, 1.0253, -0.1304, 0.0528, 1.0253, -0.1329, 0.047, 1.0253, -0.1351, 0.041, 1.0253, -0.137, 0.0349, 1.0253, -0.1386, 0.0287, 1.0253, -0.1398, 0.0224, 1.0253, -0.1408, 0.0161, 1.0253, -0.1414, 0.0098, 1.0253, -0.1417, 0.0034, 1.0253, -0.1417, -0.003, 1.0253, -0.1414, -0.0093, 1.0253, -0.1408, -0.0157, 1.0253, -0.1398, -0.022, 1.0253, -0.1386, -0.0282, 1.0253, -0.137, -0.0344, 1.0253, -0.1351, -0.0405, 1.0253, -0.1329, -0.0465, 1.0253, -0.1304, -0.0524, 1.0253, -0.1277, -0.0581, 1.0253, -0.1246, -0.0637, 1.0253, -0.1213, -0.0692, 1.0253, -0.1177, -0.0745, 1.0253, -0.1139, -0.0795, 1.0253, -0.1098, -0.0844, 1.0253, -0.1054, -0.0891, 1.0253, -0.1008, -0.0936, 1.0253, -0.0961, -0.0978, 1.0253, -0.0911, -0.1018, 1.0253, -0.0859, -0.1055, 1.0253, -0.0805, -0.1089, 1.0253, -0.075, -0.1121, 1.0253, -0.0693, -0.115, 1.0253, -0.0635, -0.1177, 1.0253, -0.0576, -0.12, 1.0253, -0.0515, -0.122, 1.0253, -0.0454, -0.1238, 1.0253, -0.0392, -0.1252, 1.0253, -0.0329, -0.1263, 1.0253, -0.0266, -0.1271, 1.0253, -0.0202, -0.1275, 1.0742, -0.0138, -0.0788, 1.0742, -0.0099, -0.0787, 1.0742, -0.006, -0.0784, 1.0742, -0.0021, -0.0779, 1.0742, 0.0018, -0.0772, 1.0742, 0.0057, -0.0764, 1.0742, 0.0095, -0.0753, 1.0742, 0.0132, -0.074, 1.0742, 0.0169, -0.0726, 1.0742, 0.0205, -0.071, 1.0742, 0.024, -0.0692, 1.0742, 0.0274, -0.0672, 1.0742, 0.0307, -0.0651, 1.0742, 0.0339, -0.0628, 1.0742, 0.037, -0.0603, 1.0742, 0.0399, -0.0577, 1.0742, 0.0428, -0.055, 1.0742, 0.0454, -0.0521, 1.0742, 0.048, -0.0491, 1.0742, 0.0503, -0.0459, 1.0742, 0.0526, -0.0427, 1.0742, 0.0546, -0.0393, 1.0742, 0.0565, -0.0358, 1.0742, 0.0582, -0.0323, 1.0742, 0.0597, -0.0287, 1.0742, 0.0611, -0.0249, 1.0742, 0.0623, -0.0212, 1.0742, 0.0632, -0.0174, 1.0742, 0.064, -0.0135, 1.0742, 0.0646, -0.0096, 1.0742, 0.065, -0.0057, 1.0742, 0.0652, -0.0017, 1.0742, 0.0652, 0.0022, 1.0742, 0.065, 0.0061, 1.0742, 0.0646, 0.0101, 1.0742, 0.064, 0.014, 1.0742, 0.0632, 0.0178, 1.0742, 0.0623, 0.0216, 1.0742, 0.0611, 0.0254, 1.0742, 0.0597, 0.0291, 1.0742, 0.0582, 0.0327, 1.0742, 0.0565, 0.0363, 1.0742, 0.0546, 0.0397, 1.0742, 0.0526, 0.0431, 1.0742, 0.0503, 0.0464, 1.0742, 0.048, 0.0495, 1.0742, 0.0454, 0.0525, 1.0742, 0.0428, 0.0554, 1.0742, 0.0399, 0.0582, 1.0742, 0.037, 0.0608, 1.0742, 0.0339, 0.0632, 1.0742, 0.0307, 0.0655, 1.0742, 0.0274, 0.0677, 1.0742, 0.024, 0.0696, 1.0742, 0.0205, 0.0714, 1.0742, 0.0169, 0.0731, 1.0742, 0.0132, 0.0745, 1.0742, 0.0095, 0.0758, 1.0742, 0.0057, 0.0768, 1.0742, 0.0018, 0.0777, 1.0742, -0.0021, 0.0784, 1.0742, -0.006, 0.0789, 1.0742, -0.0099, 0.0792, 1.0742, -0.0138, 0.0793, 1.0742, -0.0178, 0.0792, 1.0742, -0.0217, 0.0789, 1.0742, -0.0256, 0.0784, 1.0742, -0.0295, 0.0777, 1.0742, -0.0333, 0.0768, 1.0742, -0.0371, 0.0758, 1.0742, -0.0409, 0.0745, 1.0742, -0.0445, 0.0731, 1.0742, -0.0481, 0.0714, 1.0742, -0.0516, 0.0696, 1.0742, -0.055, 0.0677, 1.0742, -0.0584, 0.0655, 1.0742, -0.0616, 0.0632, 1.0742, -0.0646, 0.0608, 1.0742, -0.0676, 0.0582, 1.0742, -0.0704, 0.0554, 1.0742, -0.0731, 0.0525, 1.0742, -0.0756, 0.0495, 1.0742, -0.078, 0.0464, 1.0742, -0.0802, 0.0431, 1.0742, -0.0823, 0.0397, 1.0742, -0.0842, 0.0363, 1.0742, -0.0859, 0.0327, 1.0742, -0.0874, 0.0291, 1.0742, -0.0888, 0.0254, 1.0742, -0.0899, 0.0216, 1.0742, -0.0909, 0.0178, 1.0742, -0.0917, 0.014, 1.0742, -0.0923, 0.0101, 1.0742, -0.0927, 0.0061, 1.0742, -0.0929, 0.0022, 1.0742, -0.0929, -0.0017, 1.0742, -0.0927, -0.0057, 1.0742, -0.0923, -0.0096, 1.0742, -0.0917, -0.0135, 1.0742, -0.0909, -0.0174, 1.0742, -0.0899, -0.0212, 1.0742, -0.0888, -0.0249, 1.0742, -0.0874, -0.0287, 1.0742, -0.0859, -0.0323, 1.0742, -0.0842, -0.0358, 1.0742, -0.0823, -0.0393, 1.0742, -0.0802, -0.0427, 1.0742, -0.078, -0.0459, 1.0742, -0.0756, -0.0491, 1.0742, -0.0731, -0.0521, 1.0742, -0.0704, -0.055, 1.0742, -0.0676, -0.0577, 1.0742, -0.0646, -0.0603, 1.0742, -0.0616, -0.0628, 1.0742, -0.0584, -0.0651, 1.0742, -0.055, -0.0672, 1.0742, -0.0516, -0.0692, 1.0742, -0.0481, -0.071, 1.0742, -0.0445, -0.0726, 1.0742, -0.0409, -0.074, 1.0742, -0.0371, -0.0753, 1.0742, -0.0333, -0.0764, 1.0742, -0.0295, -0.0772, 1.0742, -0.0256, -0.0779, 1.0742, -0.0217, -0.0784, 1.0742, -0.0178, -0.0787, 1.0742, -0.0138, -0.0511, 1.0742, -0.0164, -0.051, 1.0742, -0.0189, -0.0509, 1.0742, -0.0215, -0.0505, 1.0742, -0.024, -0.0501, 1.0742, -0.0265, -0.0495, 1.0742, -0.029, -0.0488, 1.0742, -0.0314, -0.048, 1.0742, -0.0338, -0.0471, 1.0742, -0.0361, -0.046, 1.0742, -0.0384, -0.0449, 1.0742, -0.0406, -0.0436, 1.0742, -0.0428, -0.0422, 1.0742, -0.0448, -0.0407, 1.0742, -0.0468, -0.0391, 1.0742, -0.0488, -0.0374, 1.0742, -0.0506, -0.0356, 1.0742, -0.0523, -0.0337, 1.0742, -0.054, -0.0318, 1.0742, -0.0555, -0.0297, 1.0742, -0.057, -0.0276, 1.0742, -0.0583, -0.0254, 1.0742, -0.0595, -0.0232, 1.0742, -0.0606, -0.0209, 1.0742, -0.0616, -0.0185, 1.0742, -0.0625, -0.0161, 1.0742, -0.0633, -0.0137, 1.0742, -0.0639, -0.0112, 1.0742, -0.0644, -0.0087, 1.0742, -0.0648, -0.0062, 1.0742, -0.065, -0.0036, 1.0742, -0.0652, -0.0011, 1.0742, -0.0652, 0.0015, 1.0742, -0.065, 0.0041, 1.0742, -0.0648, 0.0066, 1.0742, -0.0644, 0.0091, 1.0742, -0.0639, 0.0117, 1.0742, -0.0633, 0.0141, 1.0742, -0.0625, 0.0166, 1.0742, -0.0616, 0.019, 1.0742, -0.0606, 0.0213, 1.0742, -0.0595, 0.0236, 1.0742, -0.0583, 0.0259, 1.0742, -0.057, 0.0281, 1.0742, -0.0555, 0.0302, 1.0742, -0.054, 0.0322, 1.0742, -0.0523, 0.0342, 1.0742, -0.0506, 0.0361, 1.0742, -0.0488, 0.0379, 1.0742, -0.0468, 0.0396, 1.0742, -0.0448, 0.0411, 1.0742, -0.0428, 0.0426, 1.0742, -0.0406, 0.044, 1.0742, -0.0384, 0.0453, 1.0742, -0.0361, 0.0465, 1.0742, -0.0338, 0.0475, 1.0742, -0.0314, 0.0485, 1.0742, -0.029, 0.0493, 1.0742, -0.0265, 0.05, 1.0742, -0.024, 0.0505, 1.0742, -0.0215, 0.051, 1.0742, -0.0189, 0.0513, 1.0742, -0.0164, 0.0515, 1.0742, -0.0138, 0.0516, 1.0742, -0.0113, 0.0515, 1.0742, -0.0087, 0.0513, 1.0742, -0.0062, 0.051, 1.0742, -0.0037, 0.0505, 1.0742, -0.0012, 0.05, 1.0742, 0.0013, 0.0493, 1.0742, 0.0037, 0.0485, 1.0742, 0.0061, 0.0475, 1.0742, 0.0084, 0.0465, 1.0742, 0.0107, 0.0453, 1.0742, 0.0129, 0.044, 1.0742, 0.0151, 0.0426, 1.0742, 0.0172, 0.0411, 1.0742, 0.0192, 0.0396, 1.0742, 0.0211, 0.0379, 1.0742, 0.0229, 0.0361, 1.0742, 0.0247, 0.0342, 1.0742, 0.0263, 0.0322, 1.0742, 0.0278, 0.0302, 1.0742, 0.0293, 0.0281, 1.0742, 0.0306, 0.0259, 1.0742, 0.0318, 0.0236, 1.0742, 0.033, 0.0213, 1.0742, 0.034, 0.019, 1.0742, 0.0348, 0.0166, 1.0742, 0.0356, 0.0141, 1.0742, 0.0362, 0.0117, 1.0742, 0.0367, 0.0091, 1.0742, 0.0371, 0.0066, 1.0742, 0.0374, 0.0041, 1.0742, 0.0375, 0.0015, 1.0742, 0.0375, -0.0011, 1.0742, 0.0374, -0.0036, 1.0742, 0.0371, -0.0062, 1.0742, 0.0367, -0.0087, 1.0742, 0.0362, -0.0112, 1.0742, 0.0356, -0.0137, 1.0742, 0.0348, -0.0161, 1.0742, 0.034, -0.0185, 1.0742, 0.033, -0.0209, 1.0742, 0.0318, -0.0232, 1.0742, 0.0306, -0.0254, 1.0742, 0.0293, -0.0276, 1.0742, 0.0278, -0.0297, 1.0742, 0.0263, -0.0318, 1.0742, 0.0247, -0.0337, 1.0742, 0.0229, -0.0356, 1.0742, 0.0211, -0.0374, 1.0742, 0.0192, -0.0391, 1.0742, 0.0172, -0.0407, 1.0742, 0.0151, -0.0422, 1.0742, 0.0129, -0.0436, 1.0742, 0.0107, -0.0449, 1.0742, 0.0084, -0.046, 1.0742, 0.0061, -0.0471, 1.0742, 0.0037, -0.048, 1.0742, 0.0013, -0.0488, 1.0742, -0.0012, -0.0495, 1.0742, -0.0037, -0.0501, 1.0742, -0.0062, -0.0505, 1.0742, -0.0087, -0.0509, 1.0742, -0.0113, -0.051, 0.9731, -0.0138, -0.0511, 1.0742, -0.0138, -0.0511, 1.0742, -0.0164, -0.051, 1.0742, -0.0189, -0.0509, 1.0742, -0.0215, -0.0505, 1.0742, -0.024, -0.0501, 1.0742, -0.0265, -0.0495, 1.0742, -0.029, -0.0488, 1.0742, -0.0314, -0.048, 1.0742, -0.0338, -0.0471, 1.0742, -0.0361, -0.046, 1.0742, -0.0384, -0.0449, 1.0742, -0.0406, -0.0436, 1.0742, -0.0428, -0.0422, 1.0742, -0.0448, -0.0407, 1.0742, -0.0468, -0.0391, 1.0742, -0.0488, -0.0374, 1.0742, -0.0506, -0.0356, 1.0742, -0.0523, -0.0337, 1.0742, -0.054, -0.0318, 1.0742, -0.0555, -0.0297, 1.0742, -0.057, -0.0276, 1.0742, -0.0583, -0.0254, 1.0742, -0.0595, -0.0232, 1.0742, -0.0606, -0.0209, 1.0742, -0.0616, -0.0185, 1.0742, -0.0625, -0.0161, 1.0742, -0.0633, -0.0137, 1.0742, -0.0639, -0.0112, 1.0742, -0.0644, -0.0087, 1.0742, -0.0648, -0.0062, 1.0742, -0.065, -0.0036, 1.0742, -0.0652, -0.0011, 1.0742, -0.0652, 0.0015, 1.0742, -0.065, 0.0041, 1.0742, -0.0648, 0.0066, 1.0742, -0.0644, 0.0091, 1.0742, -0.0639, 0.0117, 1.0742, -0.0633, 0.0141, 1.0742, -0.0625, 0.0166, 1.0742, -0.0616, 0.019, 1.0742, -0.0606, 0.0213, 1.0742, -0.0595, 0.0236, 1.0742, -0.0583, 0.0259, 1.0742, -0.057, 0.0281, 1.0742, -0.0555, 0.0302, 1.0742, -0.054, 0.0322, 1.0742, -0.0523, 0.0342, 1.0742, -0.0506, 0.0361, 1.0742, -0.0488, 0.0379, 1.0742, -0.0468, 0.0396, 1.0742, -0.0448, 0.0411, 1.0742, -0.0428, 0.0426, 1.0742, -0.0406, 0.044, 1.0742, -0.0384, 0.0453, 1.0742, -0.0361, 0.0465, 1.0742, -0.0338, 0.0475, 1.0742, -0.0314, 0.0485, 1.0742, -0.029, 0.0493, 1.0742, -0.0265, 0.05, 1.0742, -0.024, 0.0505, 1.0742, -0.0215, 0.051, 1.0742, -0.0189, 0.0513, 1.0742, -0.0164, 0.0515, 1.0742, -0.0138, 0.0516, 1.0742, -0.0113, 0.0515, 1.0742, -0.0087, 0.0513, 1.0742, -0.0062, 0.051, 1.0742, -0.0037, 0.0505, 1.0742, -0.0012, 0.05, 1.0742, 0.0013, 0.0493, 1.0742, 0.0037, 0.0485, 1.0742, 0.0061, 0.0475, 1.0742, 0.0084, 0.0465, 1.0742, 0.0107, 0.0453, 1.0742, 0.0129, 0.044, 1.0742, 0.0151, 0.0426, 1.0742, 0.0172, 0.0411, 1.0742, 0.0192, 0.0396, 1.0742, 0.0211, 0.0379, 1.0742, 0.0229, 0.0361, 1.0742, 0.0247, 0.0342, 1.0742, 0.0263, 0.0322, 1.0742, 0.0278, 0.0302, 1.0742, 0.0293, 0.0281, 1.0742, 0.0306, 0.0259, 1.0742, 0.0318, 0.0236, 1.0742, 0.033, 0.0213, 1.0742, 0.034, 0.019, 1.0742, 0.0348, 0.0166, 1.0742, 0.0356, 0.0141, 1.0742, 0.0362, 0.0117, 1.0742, 0.0367, 0.0091, 1.0742, 0.0371, 0.0066, 1.0742, 0.0374, 0.0041, 1.0742, 0.0375, 0.0015, 1.0742, 0.0375, -0.0011, 1.0742, 0.0374, -0.0036, 1.0742, 0.0371, -0.0062, 1.0742, 0.0367, -0.0087, 1.0742, 0.0362, -0.0112, 1.0742, 0.0356, -0.0137, 1.0742, 0.0348, -0.0161, 1.0742, 0.034, -0.0185, 1.0742, 0.033, -0.0209, 1.0742, 0.0318, -0.0232, 1.0742, 0.0306, -0.0254, 1.0742, 0.0293, -0.0276, 1.0742, 0.0278, -0.0297, 1.0742, 0.0263, -0.0318, 1.0742, 0.0247, -0.0337, 1.0742, 0.0229, -0.0356, 1.0742, 0.0211, -0.0374, 1.0742, 0.0192, -0.0391, 1.0742, 0.0172, -0.0407, 1.0742, 0.0151, -0.0422, 1.0742, 0.0129, -0.0436, 1.0742, 0.0107, -0.0449, 1.0742, 0.0084, -0.046, 1.0742, 0.0061, -0.0471, 1.0742, 0.0037, -0.048, 1.0742, 0.0013, -0.0488, 1.0742, -0.0012, -0.0495, 1.0742, -0.0037, -0.0501, 1.0742, -0.0062, -0.0505, 1.0742, -0.0087, -0.0509, 1.0742, -0.0113, -0.051, 1.0742, -0.0138, -0.0511, 0.9731, -0.0138, -0.0511, 0.9731, -0.0113, -0.051, 0.9731, -0.0087, -0.0509, 0.9731, -0.0062, -0.0505, 0.9731, -0.0037, -0.0501, 0.9731, -0.0012, -0.0495, 0.9731, 0.0013, -0.0488, 0.9731, 0.0037, -0.048, 0.9731, 0.0061, -0.0471, 0.9731, 0.0084, -0.046, 0.9731, 0.0107, -0.0449, 0.9731, 0.0129, -0.0436, 0.9731, 0.0151, -0.0422, 0.9731, 0.0172, -0.0407, 0.9731, 0.0192, -0.0391, 0.9731, 0.0211, -0.0374, 0.9731, 0.0229, -0.0356, 0.9731, 0.0247, -0.0337, 0.9731, 0.0263, -0.0318, 0.9731, 0.0278, -0.0297, 0.9731, 0.0293, -0.0276, 0.9731, 0.0306, -0.0254, 0.9731, 0.0318, -0.0232, 0.9731, 0.033, -0.0209, 0.9731, 0.034, -0.0185, 0.9731, 0.0348, -0.0161, 0.9731, 0.0356, -0.0137, 0.9731, 0.0362, -0.0112, 0.9731, 0.0367, -0.0087, 0.9731, 0.0371, -0.0062, 0.9731, 0.0374, -0.0036, 0.9731, 0.0375, -0.0011, 0.9731, 0.0375, 0.0015, 0.9731, 0.0374, 0.0041, 0.9731, 0.0371, 0.0066, 0.9731, 0.0367, 0.0091, 0.9731, 0.0362, 0.0117, 0.9731, 0.0356, 0.0141, 0.9731, 0.0348, 0.0166, 0.9731, 0.034, 0.019, 0.9731, 0.033, 0.0213, 0.9731, 0.0318, 0.0236, 0.9731, 0.0306, 0.0259, 0.9731, 0.0293, 0.0281, 0.9731, 0.0278, 0.0302, 0.9731, 0.0263, 0.0322, 0.9731, 0.0247, 0.0342, 0.9731, 0.0229, 0.0361, 0.9731, 0.0211, 0.0379, 0.9731, 0.0192, 0.0396, 0.9731, 0.0172, 0.0411, 0.9731, 0.0151, 0.0426, 0.9731, 0.0129, 0.044, 0.9731, 0.0107, 0.0453, 0.9731, 0.0084, 0.0465, 0.9731, 0.0061, 0.0475, 0.9731, 0.0037, 0.0485, 0.9731, 0.0013, 0.0493, 0.9731, -0.0012, 0.05, 0.9731, -0.0037, 0.0505, 0.9731, -0.0062, 0.051, 0.9731, -0.0087, 0.0513, 0.9731, -0.0113, 0.0515, 0.9731, -0.0138, 0.0516, 0.9731, -0.0164, 0.0515, 0.9731, -0.0189, 0.0513, 0.9731, -0.0215, 0.051, 0.9731, -0.024, 0.0505, 0.9731, -0.0265, 0.05, 0.9731, -0.029, 0.0493, 0.9731, -0.0314, 0.0485, 0.9731, -0.0338, 0.0475, 0.9731, -0.0361, 0.0465, 0.9731, -0.0384, 0.0453, 0.9731, -0.0406, 0.044, 0.9731, -0.0428, 0.0426, 0.9731, -0.0448, 0.0411, 0.9731, -0.0468, 0.0396, 0.9731, -0.0488, 0.0379, 0.9731, -0.0506, 0.0361, 0.9731, -0.0523, 0.0342, 0.9731, -0.054, 0.0322, 0.9731, -0.0555, 0.0302, 0.9731, -0.057, 0.0281, 0.9731, -0.0583, 0.0259, 0.9731, -0.0595, 0.0236, 0.9731, -0.0606, 0.0213, 0.9731, -0.0616, 0.019, 0.9731, -0.0625, 0.0166, 0.9731, -0.0633, 0.0141, 0.9731, -0.0639, 0.0117, 0.9731, -0.0644, 0.0091, 0.9731, -0.0648, 0.0066, 0.9731, -0.065, 0.0041, 0.9731, -0.0652, 0.0015, 0.9731, -0.0652, -0.0011, 0.9731, -0.065, -0.0036, 0.9731, -0.0648, -0.0062, 0.9731, -0.0644, -0.0087, 0.9731, -0.0639, -0.0112, 0.9731, -0.0633, -0.0137, 0.9731, -0.0625, -0.0161, 0.9731, -0.0616, -0.0185, 0.9731, -0.0606, -0.0209, 0.9731, -0.0595, -0.0232, 0.9731, -0.0583, -0.0254, 0.9731, -0.057, -0.0276, 0.9731, -0.0555, -0.0297, 0.9731, -0.054, -0.0318, 0.9731, -0.0523, -0.0337, 0.9731, -0.0506, -0.0356, 0.9731, -0.0488, -0.0374, 0.9731, -0.0468, -0.0391, 0.9731, -0.0448, -0.0407, 0.9731, -0.0428, -0.0422, 0.9731, -0.0406, -0.0436, 0.9731, -0.0384, -0.0449, 0.9731, -0.0361, -0.046, 0.9731, -0.0338, -0.0471, 0.9731, -0.0314, -0.048, 0.9731, -0.029, -0.0488, 0.9731, -0.0265, -0.0495, 0.9731, -0.024, -0.0501, 0.9731, -0.0215, -0.0505, 0.9731, -0.0189, -0.0509, 0.9731, -0.0164, -0.051, -0.8769, -0.0138, -0.0511, -0.8509, -0.0138, -0.0511, -0.8509, -0.0164, -0.051, -0.8509, -0.0189, -0.0509, -0.8509, -0.0215, -0.0505, -0.8509, -0.024, -0.0501, -0.8509, -0.0265, -0.0495, -0.8509, -0.029, -0.0488, -0.8509, -0.0314, -0.048, -0.8509, -0.0338, -0.0471, -0.8509, -0.0361, -0.046, -0.8509, -0.0384, -0.0449, -0.8509, -0.0406, -0.0436, -0.8509, -0.0428, -0.0422, -0.8509, -0.0448, -0.0407, -0.8509, -0.0468, -0.0391, -0.8509, -0.0488, -0.0374, -0.8509, -0.0506, -0.0356, -0.8509, -0.0523, -0.0337, -0.8509, -0.054, -0.0318, -0.8509, -0.0555, -0.0297, -0.8509, -0.057, -0.0276, -0.8509, -0.0583, -0.0254, -0.8509, -0.0595, -0.0232, -0.8509, -0.0606, -0.0209, -0.8509, -0.0616, -0.0185, -0.8509, -0.0625, -0.0161, -0.8509, -0.0633, -0.0137, -0.8509, -0.0639, -0.0112, -0.8509, -0.0644, -0.0087, -0.8509, -0.0648, -0.0062, -0.8509, -0.065, -0.0036, -0.8509, -0.0652, -0.0011, -0.8509, -0.0652, 0.0015, -0.8509, -0.065, 0.0041, -0.8509, -0.0648, 0.0066, -0.8509, -0.0644, 0.0091, -0.8509, -0.0639, 0.0117, -0.8509, -0.0633, 0.0141, -0.8509, -0.0625, 0.0166, -0.8509, -0.0616, 0.019, -0.8509, -0.0606, 0.0213, -0.8509, -0.0595, 0.0236, -0.8509, -0.0583, 0.0259, -0.8509, -0.057, 0.0281, -0.8509, -0.0555, 0.0302, -0.8509, -0.054, 0.0322, -0.8509, -0.0523, 0.0342, -0.8509, -0.0506, 0.0361, -0.8509, -0.0488, 0.0379, -0.8509, -0.0468, 0.0396, -0.8509, -0.0448, 0.0411, -0.8509, -0.0428, 0.0426, -0.8509, -0.0406, 0.044, -0.8509, -0.0384, 0.0453, -0.8509, -0.0361, 0.0465, -0.8509, -0.0338, 0.0475, -0.8509, -0.0314, 0.0485, -0.8509, -0.029, 0.0493, -0.8509, -0.0265, 0.05, -0.8509, -0.024, 0.0505, -0.8509, -0.0215, 0.051, -0.8509, -0.0189, 0.0513, -0.8509, -0.0164, 0.0515, -0.8509, -0.0138, 0.0516, -0.8509, -0.0113, 0.0515, -0.8509, -0.0087, 0.0513, -0.8509, -0.0062, 0.051, -0.8509, -0.0037, 0.0505, -0.8509, -0.0012, 0.05, -0.8509, 0.0013, 0.0493, -0.8509, 0.0037, 0.0485, -0.8509, 0.0061, 0.0475, -0.8509, 0.0084, 0.0465, -0.8509, 0.0107, 0.0453, -0.8509, 0.0129, 0.044, -0.8509, 0.0151, 0.0426, -0.8509, 0.0172, 0.0411, -0.8509, 0.0192, 0.0396, -0.8509, 0.0211, 0.0379, -0.8509, 0.0229, 0.0361, -0.8509, 0.0247, 0.0342, -0.8509, 0.0263, 0.0322, -0.8509, 0.0278, 0.0302, -0.8509, 0.0293, 0.0281, -0.8509, 0.0306, 0.0259, -0.8509, 0.0318, 0.0236, -0.8509, 0.033, 0.0213, -0.8509, 0.034, 0.019, -0.8509, 0.0348, 0.0166, -0.8509, 0.0356, 0.0141, -0.8509, 0.0362, 0.0117, -0.8509, 0.0367, 0.0091, -0.8509, 0.0371, 0.0066, -0.8509, 0.0374, 0.0041, -0.8509, 0.0375, 0.0015, -0.8509, 0.0375, -0.0011, -0.8509, 0.0374, -0.0036, -0.8509, 0.0371, -0.0062, -0.8509, 0.0367, -0.0087, -0.8509, 0.0362, -0.0112, -0.8509, 0.0356, -0.0137, -0.8509, 0.0348, -0.0161, -0.8509, 0.034, -0.0185, -0.8509, 0.033, -0.0209, -0.8509, 0.0318, -0.0232, -0.8509, 0.0306, -0.0254, -0.8509, 0.0293, -0.0276, -0.8509, 0.0278, -0.0297, -0.8509, 0.0263, -0.0318, -0.8509, 0.0247, -0.0337, -0.8509, 0.0229, -0.0356, -0.8509, 0.0211, -0.0374, -0.8509, 0.0192, -0.0391, -0.8509, 0.0172, -0.0407, -0.8509, 0.0151, -0.0422, -0.8509, 0.0129, -0.0436, -0.8509, 0.0107, -0.0449, -0.8509, 0.0084, -0.046, -0.8509, 0.0061, -0.0471, -0.8509, 0.0037, -0.048, -0.8509, 0.0013, -0.0488, -0.8509, -0.0012, -0.0495, -0.8509, -0.0037, -0.0501, -0.8509, -0.0062, -0.0505, -0.8509, -0.0087, -0.0509, -0.8509, -0.0113, -0.051, -0.8509, -0.0138, -0.0511, -0.8769, -0.0138, -0.0511, -0.8769, -0.0113, -0.051, -0.8769, -0.0087, -0.0509, -0.8769, -0.0062, -0.0505, -0.8769, -0.0037, -0.0501, -0.8769, -0.0012, -0.0495, -0.8769, 0.0013, -0.0488, -0.8769, 0.0037, -0.048, -0.8769, 0.0061, -0.0471, -0.8769, 0.0084, -0.046, -0.8769, 0.0107, -0.0449, -0.8769, 0.0129, -0.0436, -0.8769, 0.0151, -0.0422, -0.8769, 0.0172, -0.0407, -0.8769, 0.0192, -0.0391, -0.8769, 0.0211, -0.0374, -0.8769, 0.0229, -0.0356, -0.8769, 0.0247, -0.0337, -0.8769, 0.0263, -0.0318, -0.8769, 0.0278, -0.0297, -0.8769, 0.0293, -0.0276, -0.8769, 0.0306, -0.0254, -0.8769, 0.0318, -0.0232, -0.8769, 0.033, -0.0209, -0.8769, 0.034, -0.0185, -0.8769, 0.0348, -0.0161, -0.8769, 0.0356, -0.0137, -0.8769, 0.0362, -0.0112, -0.8769, 0.0367, -0.0087, -0.8769, 0.0371, -0.0062, -0.8769, 0.0374, -0.0036, -0.8769, 0.0375, -0.0011, -0.8769, 0.0375, 0.0015, -0.8769, 0.0374, 0.0041, -0.8769, 0.0371, 0.0066, -0.8769, 0.0367, 0.0091, -0.8769, 0.0362, 0.0117, -0.8769, 0.0356, 0.0141, -0.8769, 0.0348, 0.0166, -0.8769, 0.034, 0.019, -0.8769, 0.033, 0.0213, -0.8769, 0.0318, 0.0236, -0.8769, 0.0306, 0.0259, -0.8769, 0.0293, 0.0281, -0.8769, 0.0278, 0.0302, -0.8769, 0.0263, 0.0322, -0.8769, 0.0247, 0.0342, -0.8769, 0.0229, 0.0361, -0.8769, 0.0211, 0.0379, -0.8769, 0.0192, 0.0396, -0.8769, 0.0172, 0.0411, -0.8769, 0.0151, 0.0426, -0.8769, 0.0129, 0.044, -0.8769, 0.0107, 0.0453, -0.8769, 0.0084, 0.0465, -0.8769, 0.0061, 0.0475, -0.8769, 0.0037, 0.0485, -0.8769, 0.0013, 0.0493, -0.8769, -0.0012, 0.05, -0.8769, -0.0037, 0.0505, -0.8769, -0.0062, 0.051, -0.8769, -0.0087, 0.0513, -0.8769, -0.0113, 0.0515, -0.8769, -0.0138, 0.0516, -0.8769, -0.0164, 0.0515, -0.8769, -0.0189, 0.0513, -0.8769, -0.0215, 0.051, -0.8769, -0.024, 0.0505, -0.8769, -0.0265, 0.05, -0.8769, -0.029, 0.0493, -0.8769, -0.0314, 0.0485, -0.8769, -0.0338, 0.0475, -0.8769, -0.0361, 0.0465, -0.8769, -0.0384, 0.0453, -0.8769, -0.0406, 0.044, -0.8769, -0.0428, 0.0426, -0.8769, -0.0448, 0.0411, -0.8769, -0.0468, 0.0396, -0.8769, -0.0488, 0.0379, -0.8769, -0.0506, 0.0361, -0.8769, -0.0523, 0.0342, -0.8769, -0.054, 0.0322, -0.8769, -0.0555, 0.0302, -0.8769, -0.057, 0.0281, -0.8769, -0.0583, 0.0259, -0.8769, -0.0595, 0.0236, -0.8769, -0.0606, 0.0213, -0.8769, -0.0616, 0.019, -0.8769, -0.0625, 0.0166, -0.8769, -0.0633, 0.0141, -0.8769, -0.0639, 0.0117, -0.8769, -0.0644, 0.0091, -0.8769, -0.0648, 0.0066, -0.8769, -0.065, 0.0041, -0.8769, -0.0652, 0.0015, -0.8769, -0.0652, -0.0011, -0.8769, -0.065, -0.0036, -0.8769, -0.0648, -0.0062, -0.8769, -0.0644, -0.0087, -0.8769, -0.0639, -0.0112, -0.8769, -0.0633, -0.0137, -0.8769, -0.0625, -0.0161, -0.8769, -0.0616, -0.0185, -0.8769, -0.0606, -0.0209, -0.8769, -0.0595, -0.0232, -0.8769, -0.0583, -0.0254, -0.8769, -0.057, -0.0276, -0.8769, -0.0555, -0.0297, -0.8769, -0.054, -0.0318, -0.8769, -0.0523, -0.0337, -0.8769, -0.0506, -0.0356, -0.8769, -0.0488, -0.0374, -0.8769, -0.0468, -0.0391, -0.8769, -0.0448, -0.0407, -0.8769, -0.0428, -0.0422, -0.8769, -0.0406, -0.0436, -0.8769, -0.0384, -0.0449, -0.8769, -0.0361, -0.046, -0.8769, -0.0338, -0.0471, -0.8769, -0.0314, -0.048, -0.8769, -0.029, -0.0488, -0.8769, -0.0265, -0.0495, -0.8769, -0.024, -0.0501, -0.8769, -0.0215, -0.0505, -0.8769, -0.0189, -0.0509, -0.8769, -0.0164, -0.051, -0.8769, -0.1227, -0.1391, -0.8769, -0.4376, -0.1391, -0.9258, -0.4376, -0.0902, -0.9258, -0.1043, -0.0902, -0.8769, -0.1227, 0.1396, -0.8769, -0.1156, 0.1448, -0.8769, -0.1083, 0.1497, -0.8769, -0.1008, 0.1542, -0.8769, -0.0931, 0.1583, -0.8769, -0.0851, 0.162, -0.8769, -0.077, 0.1654, -0.8769, -0.0687, 0.1683, -0.8769, -0.0603, 0.1708, -0.8769, -0.0518, 0.1729, -0.8769, -0.0432, 0.1746, -0.8769, -0.0345, 0.1758, -0.8769, -0.0258, 0.1766, -0.8769, -0.017, 0.177, -0.8769, -0.0082, 0.177, -0.8769, 0.0006, 0.1765, -0.8769, 0.0093, 0.1755, -0.8769, 0.018, 0.1742, -0.8769, 0.0265, 0.1724, -0.8769, 0.035, 0.1702, -0.8769, 0.0434, 0.1675, -0.8769, 0.0516, 0.1645, -0.8769, 0.0597, 0.161, -0.8769, 0.0676, 0.1572, -0.8769, 0.0753, 0.1529, -0.8769, 0.0828, 0.1483, -0.8769, 0.09, 0.1434, -0.8769, 0.097, 0.138, -0.8769, 0.1037, 0.1324, -0.8769, 0.1101, 0.1264, -0.8769, 0.1162, 0.1201, -0.8769, 0.122, 0.1135, -0.8769, 0.1274, 0.1066, -0.8769, 0.1325, 0.0994, -0.8769, 0.1373, 0.0921, -0.8769, 0.1416, 0.0844, -0.8769, 0.1456, 0.0766, -0.8769, 0.1492, 0.0686, -0.8769, 0.1524, 0.0604, -0.8769, 0.1552, 0.0521, -0.8769, 0.1576, 0.0437, -0.8769, 0.1595, 0.0351, -0.8769, 0.161, 0.0265, -0.8769, 0.1621, 0.0178, -0.8769, 0.1628, 0.009, -0.8769, 0.163, 0.0002, -0.8769, 0.1628, -0.0085, -0.8769, 0.1621, -0.0173, -0.8769, 0.161, -0.026, -0.8769, 0.1595, -0.0347, -0.8769, 0.1576, -0.0432, -0.8769, 0.1552, -0.0517, -0.8769, 0.1524, -0.06, -0.8769, 0.1492, -0.0682, -0.8769, 0.1456, -0.0762, -0.8769, 0.1416, -0.084, -0.8769, 0.1373, -0.0916, -0.8769, 0.1325, -0.099, -0.8769, 0.1274, -0.1061, -0.8769, 0.122, -0.113, -0.8769, 0.1162, -0.1196, -0.8769, 0.1101, -0.1259, -0.8769, 0.1037, -0.1319, -0.8769, 0.097, -0.1376, -0.8769, 0.09, -0.1429, -0.8769, 0.0828, -0.1479, -0.8769, 0.0753, -0.1525, -0.8769, 0.0676, -0.1567, -0.8769, 0.0597, -0.1606, -0.8769, 0.0516, -0.164, -0.8769, 0.0434, -0.1671, -0.8769, 0.035, -0.1697, -0.8769, 0.0265, -0.1719, -0.8769, 0.018, -0.1737, -0.8769, 0.0093, -0.1751, -0.8769, 0.0006, -0.176, -0.8769, -0.0082, -0.1765, -0.8769, -0.017, -0.1766, -0.8769, -0.0258, -0.1762, -0.8769, -0.0345, -0.1754, -0.8769, -0.0432, -0.1741, -0.8769, -0.0518, -0.1725, -0.8769, -0.0603, -0.1704, -0.8769, -0.0687, -0.1679, -0.8769, -0.077, -0.1649, -0.8769, -0.0851, -0.1616, -0.8769, -0.0931, -0.1579, -0.8769, -0.1008, -0.1537, -0.8769, -0.1083, -0.1492, -0.8769, -0.1156, -0.1443, -0.8769, -0.1227, -0.1391, -0.9258, -0.1043, -0.0902, -0.9258, -0.1043, 0.0907, -0.9258, -0.0997, 0.0951, -0.9258, -0.0949, 0.0992, -0.9258, -0.0899, 0.1031, -0.9258, -0.0847, 0.1067, -0.9258, -0.0793, 0.1101, -0.9258, -0.0738, 0.1132, -0.9258, -0.0681, 0.1161, -0.9258, -0.0623, 0.1186, -0.9258, -0.0564, 0.1209, -0.9258, -0.0504, 0.1228, -0.9258, -0.0442, 0.1245, -0.9258, -0.038, 0.1259, -0.9258, -0.0318, 0.1269, -0.9258, -0.0255, 0.1276, -0.9258, -0.0191, 0.1281, -0.9258, -0.0128, 0.1282, -0.9258, -0.0064, 0.1279, -0.9258, -0.0001, 0.1274, -0.9258, 0.0062, 0.1266, -0.9258, 0.0124, 0.1254, -0.9258, 0.0186, 0.124, -0.9258, 0.0247, 0.1222, -0.9258, 0.0307, 0.1202, -0.9258, 0.0366, 0.1178, -0.9258, 0.0423, 0.1152, -0.9258, 0.048, 0.1122, -0.9258, 0.0535, 0.109, -0.9258, 0.0588, 0.1056, -0.9258, 0.0639, 0.1018, -0.9258, 0.0688, 0.0979, -0.9258, 0.0736, 0.0936, -0.9258, 0.0781, 0.0892, -0.9258, 0.0824, 0.0845, -0.9258, 0.0865, 0.0796, -0.9258, 0.0903, 0.0746, -0.9258, 0.0938, 0.0693, -0.9258, 0.0971, 0.0639, -0.9258, 0.1002, 0.0583, -0.9258, 0.1029, 0.0526, -0.9258, 0.1053, 0.0467, -0.9258, 0.1075, 0.0408, -0.9258, 0.1094, 0.0347, -0.9258, 0.1109, 0.0285, -0.9258, 0.1122, 0.0223, -0.9258, 0.1131, 0.0161, -0.9258, 0.1137, 0.0097, -0.9258, 0.1141, 0.0034, -0.9258, 0.1141, -0.0029, -0.9258, 0.1137, -0.0093, -0.9258, 0.1131, -0.0156, -0.9258, 0.1122, -0.0219, -0.9258, 0.1109, -0.0281, -0.9258, 0.1094, -0.0342, -0.9258, 0.1075, -0.0403, -0.9258, 0.1053, -0.0463, -0.9258, 0.1029, -0.0521, -0.9258, 0.1002, -0.0579, -0.9258, 0.0971, -0.0634, -0.9258, 0.0938, -0.0689, -0.9258, 0.0903, -0.0741, -0.9258, 0.0865, -0.0792, -0.9258, 0.0824, -0.0841, -0.9258, 0.0781, -0.0887, -0.9258, 0.0736, -0.0932, -0.9258, 0.0688, -0.0974, -0.9258, 0.0639, -0.1014, -0.9258, 0.0588, -0.1051, -0.9258, 0.0535, -0.1086, -0.9258, 0.048, -0.1118, -0.9258, 0.0423, -0.1147, -0.9258, 0.0366, -0.1174, -0.9258, 0.0307, -0.1197, -0.9258, 0.0247, -0.1218, -0.9258, 0.0186, -0.1235, -0.9258, 0.0124, -0.125, -0.9258, 0.0062, -0.1261, -0.9258, -0.0001, -0.127, -0.9258, -0.0064, -0.1275, -0.9258, -0.0128, -0.1277, -0.9258, -0.0191, -0.1276, -0.9258, -0.0255, -0.1272, -0.9258, -0.0318, -0.1264, -0.9258, -0.038, -0.1254, -0.9258, -0.0442, -0.124, -0.9258, -0.0504, -0.1224, -0.9258, -0.0564, -0.1204, -0.9258, -0.0623, -0.1182, -0.9258, -0.0681, -0.1156, -0.9258, -0.0738, -0.1128, -0.9258, -0.0793, -0.1097, -0.9258, -0.0847, -0.1063, -0.9258, -0.0899, -0.1026, -0.9258, -0.0949, -0.0987, -0.9258, -0.0997, -0.0946, -0.9095, -0.1053, -0.1113, -0.9095, -0.094, -0.1197, -0.8932, -0.1157, -0.1238, -0.9095, -0.0818, -0.127, -0.8932, -0.103, -0.1332, -0.9095, -0.069, -0.133, -0.8932, -0.0895, -0.1413, -0.9095, -0.0557, -0.1378, -0.8932, -0.0753, -0.1481, -0.9095, -0.042, -0.1412, -0.8932, -0.0604, -0.1534, -0.9095, -0.028, -0.1433, -0.8932, -0.0452, -0.1572, -0.9095, -0.0138, -0.144, -0.8932, -0.0296, -0.1595, -0.9095, 0.0003, -0.1433, -0.8932, -0.0138, -0.1603, -0.9095, 0.0143, -0.1412, -0.8932, 0.0019, -0.1595, -0.9095, 0.028, -0.1378, -0.8932, 0.0175, -0.1572, -0.9095, 0.0414, -0.133, -0.8932, 0.0328, -0.1534, -0.9095, 0.0541, -0.127, -0.8932, 0.0476, -0.1481, -0.9095, 0.0663, -0.1197, -0.8932, 0.0618, -0.1414, -0.9095, 0.0777, -0.1113, -0.8932, 0.0753, -0.1333, -0.9095, 0.0881, -0.1018, -0.8932, 0.088, -0.1239, -0.9095, 0.0977, -0.0913, -0.8932, 0.0997, -0.1133, -0.9095, 0.1061, -0.0799, -0.8932, 0.1103, -0.1016, -0.9095, 0.1134, -0.0678, -0.8932, 0.1196, -0.089, -0.9095, 0.1194, -0.055, -0.8932, 0.1277, -0.0754, -0.9095, 0.1242, -0.0416, -0.8932, 0.1345, -0.0612, -0.9095, 0.1276, -0.0279, -0.8932, 0.1398, -0.0464, -0.9095, 0.1297, -0.0139, -0.8932, 0.1436, -0.0311, -0.9095, 0.1304, 0.0002, -0.8932, 0.1459, -0.0155, -0.9095, 0.1297, 0.0144, -0.8932, 0.1467, 0.0002, -0.9095, 0.1276, 0.0284, -0.8932, 0.1459, 0.016, -0.9095, 0.1242, 0.0421, -0.8932, 0.1436, 0.0315, -0.9095, 0.1194, 0.0554, -0.8932, 0.1398, 0.0468, -0.9095, 0.1134, 0.0682, -0.8932, 0.1345, 0.0617, -0.9095, 0.1061, 0.0804, -0.8932, 0.1277, 0.0759, -0.9095, 0.0977, 0.0917, -0.8932, 0.1196, 0.0894, -0.9095, 0.0881, 0.1022, -0.8932, 0.1103, 0.1021, -0.9095, 0.0777, 0.1117, -0.8932, 0.0997, 0.1137, -0.9095, 0.0663, 0.1202, -0.8932, 0.088, 0.1243, -0.9095, 0.0541, 0.1274, -0.8932, 0.0753, 0.1337, -0.9095, 0.0414, 0.1335, -0.8932, 0.0618, 0.1418, -0.9095, 0.028, 0.1383, -0.8932, 0.0476, 0.1485, -0.9095, 0.0143, 0.1417, -0.8932, 0.0328, 0.1538, -0.9095, 0.0003, 0.1438, -0.8932, 0.0175, 0.1577, -0.9095, -0.0138, 0.1445, -0.8932, 0.0019, 0.16, -0.9095, -0.028, 0.1438, -0.8932, -0.0138, 0.1608, -0.9095, -0.042, 0.1417, -0.8932, -0.0296, 0.16, -0.9095, -0.0557, 0.1382, -0.8932, -0.0452, 0.1577, -0.9095, -0.069, 0.1335, -0.8932, -0.0604, 0.1538, -0.9095, -0.0818, 0.1274, -0.8932, -0.0753, 0.1485, -0.9095, -0.094, 0.1201, -0.8932, -0.0895, 0.1418, -0.8932, -0.103, 0.1337, -0.9258, -0.4376, 0.0907, -0.9258, -0.1043, 0.0907, -0.8769, -0.4376, 0.1396, -0.8769, -0.1227, 0.1396, -0.8769, -0.1227, -0.1391, -0.8769, -0.4376, -0.1391, -0.8769, -0.1227, 0.1396, -0.8769, -0.1156, 0.1448, -0.8769, -0.1083, 0.1497, -0.8769, -0.1008, 0.1542, -0.8769, -0.0931, 0.1583, -0.8769, -0.0851, 0.162, -0.8769, -0.077, 0.1654, -0.8769, -0.0687, 0.1683, -0.8769, -0.0603, 0.1708, -0.8769, -0.0518, 0.1729, -0.8769, -0.0432, 0.1746, -0.8769, -0.0345, 0.1758, -0.8769, -0.0258, 0.1766, -0.8769, -0.017, 0.177, -0.8769, -0.0082, 0.177, -0.8769, 0.0006, 0.1765, -0.8769, 0.0093, 0.1755, -0.8769, 0.018, 0.1742, -0.8769, 0.0265, 0.1724, -0.8769, 0.035, 0.1702, -0.8769, 0.0434, 0.1675, -0.8769, 0.0516, 0.1645, -0.8769, 0.0597, 0.161, -0.8769, 0.0676, 0.1572, -0.8769, 0.0753, 0.1529, -0.8769, 0.0828, 0.1483, -0.8769, 0.09, 0.1434, -0.8769, 0.097, 0.138, -0.8769, 0.1037, 0.1324, -0.8769, 0.1101, 0.1264, -0.8769, 0.1162, 0.1201, -0.8769, 0.122, 0.1135, -0.8769, 0.1274, 0.1066, -0.8769, 0.1325, 0.0994, -0.8769, 0.1373, 0.0921, -0.8769, 0.1416, 0.0844, -0.8769, 0.1456, 0.0766, -0.8769, 0.1492, 0.0686, -0.8769, 0.1524, 0.0604, -0.8769, 0.1552, 0.0521, -0.8769, 0.1576, 0.0437, -0.8769, 0.1595, 0.0351, -0.8769, 0.161, 0.0265, -0.8769, 0.1621, 0.0178, -0.8769, 0.1628, 0.009, -0.8769, 0.163, 0.0002, -0.8769, 0.1628, -0.0085, -0.8769, 0.1621, -0.0173, -0.8769, 0.161, -0.026, -0.8769, 0.1595, -0.0347, -0.8769, 0.1576, -0.0432, -0.8769, 0.1552, -0.0517, -0.8769, 0.1524, -0.06, -0.8769, 0.1492, -0.0682, -0.8769, 0.1456, -0.0762, -0.8769, 0.1416, -0.084, -0.8769, 0.1373, -0.0916, -0.8769, 0.1325, -0.099, -0.8769, 0.1274, -0.1061, -0.8769, 0.122, -0.113, -0.8769, 0.1162, -0.1196, -0.8769, 0.1101, -0.1259, -0.8769, 0.1037, -0.1319, -0.8769, 0.097, -0.1376, -0.8769, 0.09, -0.1429, -0.8769, 0.0828, -0.1479, -0.8769, 0.0753, -0.1525, -0.8769, 0.0676, -0.1567, -0.8769, 0.0597, -0.1606, -0.8769, 0.0516, -0.164, -0.8769, 0.0434, -0.1671, -0.8769, 0.035, -0.1697, -0.8769, 0.0265, -0.1719, -0.8769, 0.018, -0.1737, -0.8769, 0.0093, -0.1751, -0.8769, 0.0006, -0.176, -0.8769, -0.0082, -0.1765, -0.8769, -0.017, -0.1766, -0.8769, -0.0258, -0.1762, -0.8769, -0.0345, -0.1754, -0.8769, -0.0432, -0.1741, -0.8769, -0.0518, -0.1725, -0.8769, -0.0603, -0.1704, -0.8769, -0.0687, -0.1679, -0.8769, -0.077, -0.1649, -0.8769, -0.0851, -0.1616, -0.8769, -0.0931, -0.1579, -0.8769, -0.1008, -0.1537, -0.8769, -0.1083, -0.1492, -0.8769, -0.1156, -0.1443, -0.8769, -0.4376, 0.1396, -0.8769, -0.4376, 0.7173, -0.8769, -0.0138, 0.7173, -0.8769, 0.0203, 0.6736, -0.8769, 0.0522, 0.6282, -0.8769, 0.0818, 0.5813, -0.8769, 0.1091, 0.533, -0.8769, 0.134, 0.4835, -0.8769, 0.1565, 0.4327, -0.8769, 0.1764, 0.381, -0.8769, 0.1938, 0.3283, -0.8769, 0.2086, 0.2748, -0.8769, 0.2207, 0.2207, -0.8769, 0.2302, 0.1661, -0.8769, 0.237, 0.111, -0.8769, 0.2411, 0.0557, -0.8769, 0.2424, 0.0002, -0.8769, 0.2411, -0.0552, -0.8769, 0.237, -0.1105, -0.8769, 0.2302, -0.1656, -0.8769, 0.2207, -0.2203, -0.8769, 0.2086, -0.2744, -0.8769, 0.1938, -0.3278, -0.8769, 0.1764, -0.3805, -0.8769, 0.1565, -0.4323, -0.8769, 0.134, -0.483, -0.8769, 0.1091, -0.5326, -0.8769, 0.0818, -0.5808, -0.8769, 0.0522, -0.6277, -0.8769, 0.0203, -0.6731, -0.8769, -0.0138, -0.7169, -0.8769, -0.4376, -0.7169, -0.8769, -0.092, -0.0625, -0.8769, -0.4376, -0.0625, -0.9258, -0.092, -0.0625, -0.9258, -0.4376, -0.0625, -0.8769, -0.4376, 0.063, -0.8769, -0.092, 0.063, -0.9258, -0.4376, 0.063, -0.9258, -0.092, 0.063, -0.8769, -0.092, -0.0625, -0.9258, -0.092, -0.0625, -0.9258, -0.0888, -0.0663, -0.9258, -0.0854, -0.07, -0.9258, -0.0818, -0.0735, -0.9258, -0.078, -0.0767, -0.9258, -0.0741, -0.0798, -0.9258, -0.0701, -0.0827, -0.9258, -0.0659, -0.0854, -0.9258, -0.0615, -0.0879, -0.9258, -0.0571, -0.0902, -0.9258, -0.0525, -0.0922, -0.9258, -0.0479, -0.094, -0.9258, -0.0431, -0.0956, -0.9258, -0.0383, -0.097, -0.9258, -0.0335, -0.0981, -0.9258, -0.0285, -0.0989, -0.9258, -0.0236, -0.0995, -0.9258, -0.0186, -0.0999, -0.9258, -0.0136, -0.1, -0.9258, -0.0086, -0.0999, -0.9258, -0.0037, -0.0995, -0.9258, 0.0013, -0.0989, -0.9258, 0.0062, -0.098, -0.9258, 0.0111, -0.0969, -0.9258, 0.0159, -0.0955, -0.9258, 0.0206, -0.0939, -0.9258, 0.0252, -0.0921, -0.9258, 0.0298, -0.09, -0.9258, 0.0342, -0.0877, -0.9258, 0.0385, -0.0852, -0.9258, 0.0427, -0.0825, -0.9258, 0.0468, -0.0796, -0.9258, 0.0507, -0.0765, -0.9258, 0.0544, -0.0732, -0.9258, 0.058, -0.0697, -0.9258, 0.0614, -0.066, -0.9258, 0.0646, -0.0622, -0.9258, 0.0676, -0.0582, -0.9258, 0.0704, -0.0541, -0.9258, 0.073, -0.0498, -0.9258, 0.0754, -0.0454, -0.9258, 0.0775, -0.0409, -0.9258, 0.0795, -0.0363, -0.9258, 0.0812, -0.0317, -0.9258, 0.0827, -0.0269, -0.9258, 0.0839, -0.022, -0.9258, 0.0849, -0.0172, -0.9258, 0.0856, -0.0122, -0.9258, 0.0861, -0.0073, -0.9258, 0.0864, -0.0023, -0.9258, 0.0864, 0.0027, -0.9258, 0.0861, 0.0077, -0.9258, 0.0856, 0.0127, -0.9258, 0.0849, 0.0176, -0.9258, 0.0839, 0.0225, -0.9258, 0.0827, 0.0273, -0.9258, 0.0812, 0.0321, -0.9258, 0.0795, 0.0368, -0.9258, 0.0775, 0.0414, -0.9258, 0.0754, 0.0459, -0.9258, 0.073, 0.0503, -0.9258, 0.0704, 0.0545, -0.9258, 0.0676, 0.0587, -0.9258, 0.0646, 0.0626, -0.9258, 0.0614, 0.0665, -0.9258, 0.058, 0.0701, -0.9258, 0.0544, 0.0736, -0.9258, 0.0507, 0.0769, -0.9258, 0.0468, 0.08, -0.9258, 0.0427, 0.083, -0.9258, 0.0385, 0.0857, -0.9258, 0.0342, 0.0882, -0.9258, 0.0298, 0.0905, -0.9258, 0.0252, 0.0925, -0.9258, 0.0206, 0.0944, -0.9258, 0.0159, 0.096, -0.9258, 0.0111, 0.0973, -0.9258, 0.0062, 0.0984, -0.9258, 0.0013, 0.0993, -0.9258, -0.0037, 0.0999, -0.9258, -0.0086, 0.1003, -0.9258, -0.0136, 0.1005, -0.9258, -0.0186, 0.1003, -0.9258, -0.0236, 0.1, -0.9258, -0.0285, 0.0994, -0.9258, -0.0335, 0.0985, -0.9258, -0.0383, 0.0974, -0.9258, -0.0431, 0.0961, -0.9258, -0.0479, 0.0945, -0.9258, -0.0525, 0.0927, -0.9258, -0.0571, 0.0906, -0.9258, -0.0615, 0.0884, -0.9258, -0.0659, 0.0859, -0.9258, -0.0701, 0.0832, -0.9258, -0.0741, 0.0803, -0.9258, -0.078, 0.0772, -0.9258, -0.0818, 0.0739, -0.9258, -0.0854, 0.0704, -0.9258, -0.0888, 0.0668, -0.9258, -0.092, 0.063, -0.8769, -0.092, 0.063, -0.8769, -0.0888, 0.0668, -0.8769, -0.0854, 0.0704, -0.8769, -0.0818, 0.0739, -0.8769, -0.078, 0.0772, -0.8769, -0.0741, 0.0803, -0.8769, -0.0701, 0.0832, -0.8769, -0.0659, 0.0859, -0.8769, -0.0615, 0.0884, -0.8769, -0.0571, 0.0906, -0.8769, -0.0525, 0.0927, -0.8769, -0.0479, 0.0945, -0.8769, -0.0431, 0.0961, -0.8769, -0.0383, 0.0974, -0.8769, -0.0335, 0.0985, -0.8769, -0.0285, 0.0994, -0.8769, -0.0236, 0.1, -0.8769, -0.0186, 0.1003, -0.8769, -0.0136, 0.1005, -0.8769, -0.0086, 0.1003, -0.8769, -0.0037, 0.0999, -0.8769, 0.0013, 0.0993, -0.8769, 0.0062, 0.0984, -0.8769, 0.0111, 0.0973, -0.8769, 0.0159, 0.096, -0.8769, 0.0206, 0.0944, -0.8769, 0.0252, 0.0925, -0.8769, 0.0298, 0.0905, -0.8769, 0.0342, 0.0882, -0.8769, 0.0385, 0.0857, -0.8769, 0.0427, 0.083, -0.8769, 0.0468, 0.08, -0.8769, 0.0507, 0.0769, -0.8769, 0.0544, 0.0736, -0.8769, 0.058, 0.0701, -0.8769, 0.0614, 0.0665, -0.8769, 0.0646, 0.0626, -0.8769, 0.0676, 0.0587, -0.8769, 0.0704, 0.0545, -0.8769, 0.073, 0.0503, -0.8769, 0.0754, 0.0459, -0.8769, 0.0775, 0.0414, -0.8769, 0.0795, 0.0368, -0.8769, 0.0812, 0.0321, -0.8769, 0.0827, 0.0273, -0.8769, 0.0839, 0.0225, -0.8769, 0.0849, 0.0176, -0.8769, 0.0856, 0.0127, -0.8769, 0.0861, 0.0077, -0.8769, 0.0864, 0.0027, -0.8769, 0.0864, -0.0023, -0.8769, 0.0861, -0.0073, -0.8769, 0.0856, -0.0122, -0.8769, 0.0849, -0.0172, -0.8769, 0.0839, -0.022, -0.8769, 0.0827, -0.0269, -0.8769, 0.0812, -0.0317, -0.8769, 0.0795, -0.0363, -0.8769, 0.0775, -0.0409, -0.8769, 0.0754, -0.0454, -0.8769, 0.073, -0.0498, -0.8769, 0.0704, -0.0541, -0.8769, 0.0676, -0.0582, -0.8769, 0.0646, -0.0622, -0.8769, 0.0614, -0.066, -0.8769, 0.058, -0.0697, -0.8769, 0.0544, -0.0732, -0.8769, 0.0507, -0.0765, -0.8769, 0.0468, -0.0796, -0.8769, 0.0427, -0.0825, -0.8769, 0.0385, -0.0852, -0.8769, 0.0342, -0.0877, -0.8769, 0.0298, -0.09, -0.8769, 0.0252, -0.0921, -0.8769, 0.0206, -0.0939, -0.8769, 0.0159, -0.0955, -0.8769, 0.0111, -0.0969, -0.8769, 0.0062, -0.098, -0.8769, 0.0013, -0.0989, -0.8769, -0.0037, -0.0995, -0.8769, -0.0086, -0.0999, -0.8769, -0.0136, -0.1, -0.8769, -0.0186, -0.0999, -0.8769, -0.0236, -0.0995, -0.8769, -0.0285, -0.0989, -0.8769, -0.0335, -0.0981, -0.8769, -0.0383, -0.097, -0.8769, -0.0431, -0.0956, -0.8769, -0.0479, -0.094, -0.8769, -0.0525, -0.0922, -0.8769, -0.0571, -0.0902, -0.8769, -0.0615, -0.0879, -0.8769, -0.0659, -0.0854, -0.8769, -0.0701, -0.0827, -0.8769, -0.0741, -0.0798, -0.8769, -0.078, -0.0767, -0.8769, -0.0818, -0.0735, -0.8769, -0.0854, -0.07, -0.8769, -0.0888, -0.0663, -0.9258, -0.092, -0.0625, -0.9258, -0.0888, -0.0663, -0.9258, -0.0854, -0.07, -0.9258, -0.0818, -0.0735, -0.9258, -0.078, -0.0767, -0.9258, -0.0741, -0.0798, -0.9258, -0.0701, -0.0827, -0.9258, -0.0659, -0.0854, -0.9258, -0.0615, -0.0879, -0.9258, -0.0571, -0.0902, -0.9258, -0.0525, -0.0922, -0.9258, -0.0479, -0.094, -0.9258, -0.0431, -0.0956, -0.9258, -0.0383, -0.097, -0.9258, -0.0335, -0.0981, -0.9258, -0.0285, -0.0989, -0.9258, -0.0236, -0.0995, -0.9258, -0.0186, -0.0999, -0.9258, -0.0136, -0.1, -0.9258, -0.0086, -0.0999, -0.9258, -0.0037, -0.0995, -0.9258, 0.0013, -0.0989, -0.9258, 0.0062, -0.098, -0.9258, 0.0111, -0.0969, -0.9258, 0.0159, -0.0955, -0.9258, 0.0206, -0.0939, -0.9258, 0.0252, -0.0921, -0.9258, 0.0298, -0.09, -0.9258, 0.0342, -0.0877, -0.9258, 0.0385, -0.0852, -0.9258, 0.0427, -0.0825, -0.9258, 0.0468, -0.0796, -0.9258, 0.0507, -0.0765, -0.9258, 0.0544, -0.0732, -0.9258, 0.058, -0.0697, -0.9258, 0.0614, -0.066, -0.9258, 0.0646, -0.0622, -0.9258, 0.0676, -0.0582, -0.9258, 0.0704, -0.0541, -0.9258, 0.073, -0.0498, -0.9258, 0.0754, -0.0454, -0.9258, 0.0775, -0.0409, -0.9258, 0.0795, -0.0363, -0.9258, 0.0812, -0.0317, -0.9258, 0.0827, -0.0269, -0.9258, 0.0839, -0.022, -0.9258, 0.0849, -0.0172, -0.9258, 0.0856, -0.0122, -0.9258, 0.0861, -0.0073, -0.9258, 0.0864, -0.0023, -0.9258, 0.0864, 0.0027, -0.9258, 0.0861, 0.0077, -0.9258, 0.0856, 0.0127, -0.9258, 0.0849, 0.0176, -0.9258, 0.0839, 0.0225, -0.9258, 0.0827, 0.0273, -0.9258, 0.0812, 0.0321, -0.9258, 0.0795, 0.0368, -0.9258, 0.0775, 0.0414, -0.9258, 0.0754, 0.0459, -0.9258, 0.073, 0.0503, -0.9258, 0.0704, 0.0545, -0.9258, 0.0676, 0.0587, -0.9258, 0.0646, 0.0626, -0.9258, 0.0614, 0.0665, -0.9258, 0.058, 0.0701, -0.9258, 0.0544, 0.0736, -0.9258, 0.0507, 0.0769, -0.9258, 0.0468, 0.08, -0.9258, 0.0427, 0.083, -0.9258, 0.0385, 0.0857, -0.9258, 0.0342, 0.0882, -0.9258, 0.0298, 0.0905, -0.9258, 0.0252, 0.0925, -0.9258, 0.0206, 0.0944, -0.9258, 0.0159, 0.096, -0.9258, 0.0111, 0.0973, -0.9258, 0.0062, 0.0984, -0.9258, 0.0013, 0.0993, -0.9258, -0.0037, 0.0999, -0.9258, -0.0086, 0.1003, -0.9258, -0.0136, 0.1005, -0.9258, -0.0186, 0.1003, -0.9258, -0.0236, 0.1, -0.9258, -0.0285, 0.0994, -0.9258, -0.0335, 0.0985, -0.9258, -0.0383, 0.0974, -0.9258, -0.0431, 0.0961, -0.9258, -0.0479, 0.0945, -0.9258, -0.0525, 0.0927, -0.9258, -0.0571, 0.0906, -0.9258, -0.0615, 0.0884, -0.9258, -0.0659, 0.0859, -0.9258, -0.0701, 0.0832, -0.9258, -0.0741, 0.0803, -0.9258, -0.078, 0.0772, -0.9258, -0.0818, 0.0739, -0.9258, -0.0854, 0.0704, -0.9258, -0.0888, 0.0668, -0.9258, -0.092, 0.063, -0.9258, -0.4376, 0.063, -0.9258, -0.4376, 0.0907, -0.9258, -0.1043, 0.0907, -0.9258, -0.0997, 0.0951, -0.9258, -0.0949, 0.0992, -0.9258, -0.0899, 0.1031, -0.9258, -0.0847, 0.1067, -0.9258, -0.0793, 0.1101, -0.9258, -0.0738, 0.1132, -0.9258, -0.0681, 0.1161, -0.9258, -0.0623, 0.1186, -0.9258, -0.0564, 0.1209, -0.9258, -0.0504, 0.1228, -0.9258, -0.0442, 0.1245, -0.9258, -0.038, 0.1259, -0.9258, -0.0318, 0.1269, -0.9258, -0.0255, 0.1276, -0.9258, -0.0191, 0.1281, -0.9258, -0.0128, 0.1282, -0.9258, -0.0064, 0.1279, -0.9258, -0.0001, 0.1274, -0.9258, 0.0062, 0.1266, -0.9258, 0.0124, 0.1254, -0.9258, 0.0186, 0.124, -0.9258, 0.0247, 0.1222, -0.9258, 0.0307, 0.1202, -0.9258, 0.0366, 0.1178, -0.9258, 0.0423, 0.1152, -0.9258, 0.048, 0.1122, -0.9258, 0.0535, 0.109, -0.9258, 0.0588, 0.1056, -0.9258, 0.0639, 0.1018, -0.9258, 0.0688, 0.0979, -0.9258, 0.0736, 0.0936, -0.9258, 0.0781, 0.0892, -0.9258, 0.0824, 0.0845, -0.9258, 0.0865, 0.0796, -0.9258, 0.0903, 0.0746, -0.9258, 0.0938, 0.0693, -0.9258, 0.0971, 0.0639, -0.9258, 0.1002, 0.0583, -0.9258, 0.1029, 0.0526, -0.9258, 0.1053, 0.0467, -0.9258, 0.1075, 0.0408, -0.9258, 0.1094, 0.0347, -0.9258, 0.1109, 0.0285, -0.9258, 0.1122, 0.0223, -0.9258, 0.1131, 0.0161, -0.9258, 0.1137, 0.0097, -0.9258, 0.1141, 0.0034, -0.9258, 0.1141, -0.0029, -0.9258, 0.1137, -0.0093, -0.9258, 0.1131, -0.0156, -0.9258, 0.1122, -0.0219, -0.9258, 0.1109, -0.0281, -0.9258, 0.1094, -0.0342, -0.9258, 0.1075, -0.0403, -0.9258, 0.1053, -0.0463, -0.9258, 0.1029, -0.0521, -0.9258, 0.1002, -0.0579, -0.9258, 0.0971, -0.0634, -0.9258, 0.0938, -0.0689, -0.9258, 0.0903, -0.0741, -0.9258, 0.0865, -0.0792, -0.9258, 0.0824, -0.0841, -0.9258, 0.0781, -0.0887, -0.9258, 0.0736, -0.0932, -0.9258, 0.0688, -0.0974, -0.9258, 0.0639, -0.1014, -0.9258, 0.0588, -0.1051, -0.9258, 0.0535, -0.1086, -0.9258, 0.048, -0.1118, -0.9258, 0.0423, -0.1147, -0.9258, 0.0366, -0.1174, -0.9258, 0.0307, -0.1197, -0.9258, 0.0247, -0.1218, -0.9258, 0.0186, -0.1235, -0.9258, 0.0124, -0.125, -0.9258, 0.0062, -0.1261, -0.9258, -0.0001, -0.127, -0.9258, -0.0064, -0.1275, -0.9258, -0.0128, -0.1277, -0.9258, -0.0191, -0.1276, -0.9258, -0.0255, -0.1272, -0.9258, -0.0318, -0.1264, -0.9258, -0.038, -0.1254, -0.9258, -0.0442, -0.124, -0.9258, -0.0504, -0.1224, -0.9258, -0.0564, -0.1204, -0.9258, -0.0623, -0.1182, -0.9258, -0.0681, -0.1156, -0.9258, -0.0738, -0.1128, -0.9258, -0.0793, -0.1097, -0.9258, -0.0847, -0.1063, -0.9258, -0.0899, -0.1026, -0.9258, -0.0949, -0.0987, -0.9258, -0.0997, -0.0946, -0.9258, -0.1043, -0.0902, -0.9258, -0.4376, -0.0902, -0.9258, -0.4376, -0.0625, -0.8769, -0.4376, 0.063, -0.8769, -0.092, 0.063, -0.8769, -0.0888, 0.0668, -0.8769, -0.0854, 0.0704, -0.8769, -0.0818, 0.0739, -0.8769, -0.078, 0.0772, -0.8769, -0.0741, 0.0803, -0.8769, -0.0701, 0.0832, -0.8769, -0.0659, 0.0859, -0.8769, -0.0615, 0.0884, -0.8769, -0.0571, 0.0906, -0.8769, -0.0525, 0.0927, -0.8769, -0.0479, 0.0945, -0.8769, -0.0431, 0.0961, -0.8769, -0.0383, 0.0974, -0.8769, -0.0335, 0.0985, -0.8769, -0.0285, 0.0994, -0.8769, -0.0236, 0.1, -0.8769, -0.0186, 0.1003, -0.8769, -0.0136, 0.1005, -0.8769, -0.0086, 0.1003, -0.8769, -0.0037, 0.0999, -0.8769, 0.0013, 0.0993, -0.8769, 0.0062, 0.0984, -0.8769, 0.0111, 0.0973, -0.8769, 0.0159, 0.096, -0.8769, 0.0206, 0.0944, -0.8769, 0.0252, 0.0925, -0.8769, 0.0298, 0.0905, -0.8769, 0.0342, 0.0882, -0.8769, 0.0385, 0.0857, -0.8769, 0.0427, 0.083, -0.8769, 0.0468, 0.08, -0.8769, 0.0507, 0.0769, -0.8769, 0.0544, 0.0736, -0.8769, 0.058, 0.0701, -0.8769, 0.0614, 0.0665, -0.8769, 0.0646, 0.0626, -0.8769, 0.0676, 0.0587, -0.8769, 0.0704, 0.0545, -0.8769, 0.073, 0.0503, -0.8769, 0.0754, 0.0459, -0.8769, 0.0775, 0.0414, -0.8769, 0.0795, 0.0368, -0.8769, 0.0812, 0.0321, -0.8769, 0.0827, 0.0273, -0.8769, 0.0839, 0.0225, -0.8769, 0.0849, 0.0176, -0.8769, 0.0856, 0.0127, -0.8769, 0.0861, 0.0077, -0.8769, 0.0864, 0.0027, -0.8769, 0.0864, -0.0023, -0.8769, 0.0861, -0.0073, -0.8769, 0.0856, -0.0122, -0.8769, 0.0849, -0.0172, -0.8769, 0.0839, -0.022, -0.8769, 0.0827, -0.0269, -0.8769, 0.0812, -0.0317, -0.8769, 0.0795, -0.0363, -0.8769, 0.0775, -0.0409, -0.8769, 0.0754, -0.0454, -0.8769, 0.073, -0.0498, -0.8769, 0.0704, -0.0541, -0.8769, 0.0676, -0.0582, -0.8769, 0.0646, -0.0622, -0.8769, 0.0614, -0.066, -0.8769, 0.058, -0.0697, -0.8769, 0.0544, -0.0732, -0.8769, 0.0507, -0.0765, -0.8769, 0.0468, -0.0796, -0.8769, 0.0427, -0.0825, -0.8769, 0.0385, -0.0852, -0.8769, 0.0342, -0.0877, -0.8769, 0.0298, -0.09, -0.8769, 0.0252, -0.0921, -0.8769, 0.0206, -0.0939, -0.8769, 0.0159, -0.0955, -0.8769, 0.0111, -0.0969, -0.8769, 0.0062, -0.098, -0.8769, 0.0013, -0.0989, -0.8769, -0.0037, -0.0995, -0.8769, -0.0086, -0.0999, -0.8769, -0.0136, -0.1, -0.8769, -0.0186, -0.0999, -0.8769, -0.0236, -0.0995, -0.8769, -0.0285, -0.0989, -0.8769, -0.0335, -0.0981, -0.8769, -0.0383, -0.097, -0.8769, -0.0431, -0.0956, -0.8769, -0.0479, -0.094, -0.8769, -0.0525, -0.0922, -0.8769, -0.0571, -0.0902, -0.8769, -0.0615, -0.0879, -0.8769, -0.0659, -0.0854, -0.8769, -0.0701, -0.0827, -0.8769, -0.0741, -0.0798, -0.8769, -0.078, -0.0767, -0.8769, -0.0818, -0.0735, -0.8769, -0.0854, -0.07, -0.8769, -0.0888, -0.0663, -0.8769, -0.092, -0.0625, -0.8769, -0.4376, -0.0625, -0.8769, -0.0138, -0.0511, -0.8769, -0.0113, -0.051, -0.8769, -0.0087, -0.0509, -0.8769, -0.0062, -0.0505, -0.8769, -0.0037, -0.0501, -0.8769, -0.0012, -0.0495, -0.8769, 0.0013, -0.0488, -0.8769, 0.0037, -0.048, -0.8769, 0.0061, -0.0471, -0.8769, 0.0084, -0.046, -0.8769, 0.0107, -0.0449, -0.8769, 0.0129, -0.0436, -0.8769, 0.0151, -0.0422, -0.8769, 0.0172, -0.0407, -0.8769, 0.0192, -0.0391, -0.8769, 0.0211, -0.0374, -0.8769, 0.0229, -0.0356, -0.8769, 0.0247, -0.0337, -0.8769, 0.0263, -0.0318, -0.8769, 0.0278, -0.0297, -0.8769, 0.0293, -0.0276, -0.8769, 0.0306, -0.0254, -0.8769, 0.0318, -0.0232, -0.8769, 0.033, -0.0209, -0.8769, 0.034, -0.0185, -0.8769, 0.0348, -0.0161, -0.8769, 0.0356, -0.0137, -0.8769, 0.0362, -0.0112, -0.8769, 0.0367, -0.0087, -0.8769, 0.0371, -0.0062, -0.8769, 0.0374, -0.0036, -0.8769, 0.0375, -0.0011, -0.8769, 0.0375, 0.0015, -0.8769, 0.0374, 0.0041, -0.8769, 0.0371, 0.0066, -0.8769, 0.0367, 0.0091, -0.8769, 0.0362, 0.0117, -0.8769, 0.0356, 0.0141, -0.8769, 0.0348, 0.0166, -0.8769, 0.034, 0.019, -0.8769, 0.033, 0.0213, -0.8769, 0.0318, 0.0236, -0.8769, 0.0306, 0.0259, -0.8769, 0.0293, 0.0281, -0.8769, 0.0278, 0.0302, -0.8769, 0.0263, 0.0322, -0.8769, 0.0247, 0.0342, -0.8769, 0.0229, 0.0361, -0.8769, 0.0211, 0.0379, -0.8769, 0.0192, 0.0396, -0.8769, 0.0172, 0.0411, -0.8769, 0.0151, 0.0426, -0.8769, 0.0129, 0.044, -0.8769, 0.0107, 0.0453, -0.8769, 0.0084, 0.0465, -0.8769, 0.0061, 0.0475, -0.8769, 0.0037, 0.0485, -0.8769, 0.0013, 0.0493, -0.8769, -0.0012, 0.05, -0.8769, -0.0037, 0.0505, -0.8769, -0.0062, 0.051, -0.8769, -0.0087, 0.0513, -0.8769, -0.0113, 0.0515, -0.8769, -0.0138, 0.0516, -0.8769, -0.0164, 0.0515, -0.8769, -0.0189, 0.0513, -0.8769, -0.0215, 0.051, -0.8769, -0.024, 0.0505, -0.8769, -0.0265, 0.05, -0.8769, -0.029, 0.0493, -0.8769, -0.0314, 0.0485, -0.8769, -0.0338, 0.0475, -0.8769, -0.0361, 0.0465, -0.8769, -0.0384, 0.0453, -0.8769, -0.0406, 0.044, -0.8769, -0.0428, 0.0426, -0.8769, -0.0448, 0.0411, -0.8769, -0.0468, 0.0396, -0.8769, -0.0488, 0.0379, -0.8769, -0.0506, 0.0361, -0.8769, -0.0523, 0.0342, -0.8769, -0.054, 0.0322, -0.8769, -0.0555, 0.0302, -0.8769, -0.057, 0.0281, -0.8769, -0.0583, 0.0259, -0.8769, -0.0595, 0.0236, -0.8769, -0.0606, 0.0213, -0.8769, -0.0616, 0.019, -0.8769, -0.0625, 0.0166, -0.8769, -0.0633, 0.0141, -0.8769, -0.0639, 0.0117, -0.8769, -0.0644, 0.0091, -0.8769, -0.0648, 0.0066, -0.8769, -0.065, 0.0041, -0.8769, -0.0652, 0.0015, -0.8769, -0.0652, -0.0011, -0.8769, -0.065, -0.0036, -0.8769, -0.0648, -0.0062, -0.8769, -0.0644, -0.0087, -0.8769, -0.0639, -0.0112, -0.8769, -0.0633, -0.0137, -0.8769, -0.0625, -0.0161, -0.8769, -0.0616, -0.0185, -0.8769, -0.0606, -0.0209, -0.8769, -0.0595, -0.0232, -0.8769, -0.0583, -0.0254, -0.8769, -0.057, -0.0276, -0.8769, -0.0555, -0.0297, -0.8769, -0.054, -0.0318, -0.8769, -0.0523, -0.0337, -0.8769, -0.0506, -0.0356, -0.8769, -0.0488, -0.0374, -0.8769, -0.0468, -0.0391, -0.8769, -0.0448, -0.0407, -0.8769, -0.0428, -0.0422, -0.8769, -0.0406, -0.0436, -0.8769, -0.0384, -0.0449, -0.8769, -0.0361, -0.046, -0.8769, -0.0338, -0.0471, -0.8769, -0.0314, -0.048, -0.8769, -0.029, -0.0488, -0.8769, -0.0265, -0.0495, -0.8769, -0.024, -0.0501, -0.8769, -0.0215, -0.0505, -0.8769, -0.0189, -0.0509, -0.8769, -0.0164, -0.051, -0.8769, -0.0138, 0.7173, -0.8769, 0.0203, 0.6736, -0.8769, 0.0522, 0.6282, -0.8769, 0.0818, 0.5813, -0.8769, 0.1091, 0.533, -0.8769, 0.134, 0.4835, -0.8769, 0.1565, 0.4327, -0.8769, 0.1764, 0.381, -0.8769, 0.1938, 0.3283, -0.8769, 0.2086, 0.2748, -0.8769, 0.2207, 0.2207, -0.8769, 0.2302, 0.1661, -0.8769, 0.237, 0.111, -0.8769, 0.2411, 0.0557, -0.8769, 0.2424, 0.0002, -0.8769, 0.2411, -0.0552, -0.8769, 0.237, -0.1105, -0.8769, 0.2302, -0.1656, -0.8769, 0.2207, -0.2203, -0.8769, 0.2086, -0.2744, -0.8769, 0.1938, -0.3278, -0.8769, 0.1764, -0.3805, -0.8769, 0.1565, -0.4323, -0.8769, 0.134, -0.483, -0.8769, 0.1091, -0.5326, -0.8769, 0.0818, -0.5808, -0.8769, 0.0522, -0.6277, -0.8769, 0.0203, -0.6731, -0.8769, -0.0138, -0.7169, 0.535, -0.0138, 0.7173, 1.0253, 0.2195, 0.2271, 0.9533, 0.2023, 0.299, 0.8826, 0.1804, 0.3697, 0.8135, 0.1539, 0.4388, 0.7529, 0.1263, 0.4995, 0.6998, 0.0985, 0.5525, 0.6483, 0.0678, 0.6041, 0.5984, 0.0345, 0.6539, 0.5663, 0.0109, 0.686, 1.0253, 0.2195, -0.2266, 1.0253, 0.2285, -0.1767, 1.0253, 0.2353, -0.1264, 1.0253, 0.2399, -0.0758, 1.0253, 0.2421, -0.0251, 1.0253, 0.2421, 0.0256, 1.0253, 0.2399, 0.0763, 1.0253, 0.2353, 0.1268, 1.0253, 0.2285, 0.1771, 0.535, -0.0138, -0.7169, 0.5824, 0.0229, -0.6695, 0.6316, 0.0571, -0.6203, 0.6826, 0.0886, -0.5693, 0.7352, 0.1174, -0.5167, 0.7892, 0.1434, -0.4627, 0.8445, 0.1665, -0.4073, 0.901, 0.1866, -0.3509, 0.9585, 0.2037, -0.2934, 0.9918, 0.2121, -0.2601, -0.8509, 0.2264, -0.1897, -0.8509, 0.2342, -0.1358, -0.8509, 0.2395, -0.0815, -0.8509, 0.2421, -0.027, -0.8509, 0.2421, 0.0275, -0.8509, 0.2395, 0.0819, -0.8509, 0.2342, 0.1362, -0.8509, 0.2264, 0.1902, 0.9731, 0.2264, -0.1897, 0.9731, 0.2264, 0.1902, 0.9731, 0.2342, 0.1362, 0.9731, 0.2395, 0.0819, 0.9731, 0.2421, 0.0275, 0.9731, 0.2421, -0.027, 0.9731, 0.2395, -0.0815, 0.9731, 0.2342, -0.1358, 0.9992, 0.2216, 0.2163, -0.8509, 0.2216, 0.2163, 0.5242, 0.0069, 0.6912, 0.5759, 0.0445, 0.6396, 0.6296, 0.0791, 0.5858, 0.6852, 0.1106, 0.5303, 0.7425, 0.1389, 0.473, 0.8013, 0.164, 0.4142, 0.8614, 0.1857, 0.3541, 0.9226, 0.2039, 0.2929, 0.9607, 0.2134, 0.2547, -0.8509, 0.0069, 0.6912, -0.8509, 0.2104, 0.2676, -0.8509, 0.1968, 0.3184, -0.8509, 0.1808, 0.3685, -0.8509, 0.1625, 0.4179, -0.8509, 0.142, 0.4663, -0.8509, 0.1192, 0.5137, -0.8509, 0.0943, 0.56, -0.8509, 0.0672, 0.6051, -0.8509, 0.038, 0.6489, 0.9992, 0.2216, -0.2158, 0.93, 0.2059, -0.285, 0.8619, 0.1858, -0.3531, 0.7951, 0.1616, -0.4198, 0.7301, 0.1331, -0.4849, 0.6669, 0.1007, -0.5481, 0.6119, 0.0682, -0.6031, 0.5674, 0.0386, -0.6476, 0.5242, 0.0069, -0.6908, -0.8509, 0.2216, -0.2158, -0.8509, 0.0069, -0.6908, -0.8509, 0.038, -0.6484, -0.8509, 0.0672, -0.6046, -0.8509, 0.0943, -0.5595, -0.8509, 0.1192, -0.5132, -0.8509, 0.142, -0.4658, -0.8509, 0.1625, -0.4174, -0.8509, 0.1808, -0.3681, -0.8509, 0.1968, -0.318, -0.8509, 0.2104, -0.2672, -0.8509, 0.0069, 0.6912, 0.5242, 0.0069, 0.6912, 0.5242, -0.4376, 0.6912, -0.8509, -0.4376, 0.6912, 0.5242, 0.0069, 0.6912, 0.5759, 0.0445, 0.6396, 0.6296, 0.0791, 0.5858, 0.6852, 0.1106, 0.5303, 0.7425, 0.1389, 0.473, 0.8013, 0.164, 0.4142, 0.8614, 0.1857, 0.3541, 0.9226, 0.2039, 0.2929, 0.9607, 0.2134, 0.2547, 0.9992, 0.2216, 0.2163, 0.9992, -0.4376, 0.2163, 0.5242, -0.4376, 0.6912, -0.8509, 0.0069, -0.6908, -0.8509, 0.038, -0.6484, -0.8509, 0.0672, -0.6046, -0.8509, 0.0943, -0.5595, -0.8509, 0.1192, -0.5132, -0.8509, 0.142, -0.4658, -0.8509, 0.1625, -0.4174, -0.8509, 0.1808, -0.3681, -0.8509, 0.1968, -0.318, -0.8509, 0.2104, -0.2672, -0.8509, 0.2216, -0.2158, -0.8509, -0.4376, -0.2158, -0.8509, -0.4376, -0.6908, -0.8509, 0.2216, -0.2158, 0.9992, 0.2216, -0.2158, 0.9992, -0.4376, -0.2158, -0.8509, -0.4376, -0.2158, -0.8509, 0.2264, 0.1902, 0.9731, 0.2264, 0.1902, 0.9731, -0.4376, 0.1902, -0.8509, -0.4376, 0.1902, -0.8509, 0.2264, -0.1897, -0.8509, 0.2342, -0.1358, -0.8509, 0.2395, -0.0815, -0.8509, 0.2421, -0.027, -0.8509, 0.2421, 0.0275, -0.8509, 0.2395, 0.0819, -0.8509, 0.2342, 0.1362, -0.8509, 0.2264, 0.1902, -0.8509, -0.4376, 0.1902, -0.8509, -0.4376, -0.1897, -0.8509, -0.0138, -0.0511, -0.8509, -0.0164, -0.051, -0.8509, -0.0189, -0.0509, -0.8509, -0.0215, -0.0505, -0.8509, -0.024, -0.0501, -0.8509, -0.0265, -0.0495, -0.8509, -0.029, -0.0488, -0.8509, -0.0314, -0.048, -0.8509, -0.0338, -0.0471, -0.8509, -0.0361, -0.046, -0.8509, -0.0384, -0.0449, -0.8509, -0.0406, -0.0436, -0.8509, -0.0428, -0.0422, -0.8509, -0.0448, -0.0407, -0.8509, -0.0468, -0.0391, -0.8509, -0.0488, -0.0374, -0.8509, -0.0506, -0.0356, -0.8509, -0.0523, -0.0337, -0.8509, -0.054, -0.0318, -0.8509, -0.0555, -0.0297, -0.8509, -0.057, -0.0276, -0.8509, -0.0583, -0.0254, -0.8509, -0.0595, -0.0232, -0.8509, -0.0606, -0.0209, -0.8509, -0.0616, -0.0185, -0.8509, -0.0625, -0.0161, -0.8509, -0.0633, -0.0137, -0.8509, -0.0639, -0.0112, -0.8509, -0.0644, -0.0087, -0.8509, -0.0648, -0.0062, -0.8509, -0.065, -0.0036, -0.8509, -0.0652, -0.0011, -0.8509, -0.0652, 0.0015, -0.8509, -0.065, 0.0041, -0.8509, -0.0648, 0.0066, -0.8509, -0.0644, 0.0091, -0.8509, -0.0639, 0.0117, -0.8509, -0.0633, 0.0141, -0.8509, -0.0625, 0.0166, -0.8509, -0.0616, 0.019, -0.8509, -0.0606, 0.0213, -0.8509, -0.0595, 0.0236, -0.8509, -0.0583, 0.0259, -0.8509, -0.057, 0.0281, -0.8509, -0.0555, 0.0302, -0.8509, -0.054, 0.0322, -0.8509, -0.0523, 0.0342, -0.8509, -0.0506, 0.0361, -0.8509, -0.0488, 0.0379, -0.8509, -0.0468, 0.0396, -0.8509, -0.0448, 0.0411, -0.8509, -0.0428, 0.0426, -0.8509, -0.0406, 0.044, -0.8509, -0.0384, 0.0453, -0.8509, -0.0361, 0.0465, -0.8509, -0.0338, 0.0475, -0.8509, -0.0314, 0.0485, -0.8509, -0.029, 0.0493, -0.8509, -0.0265, 0.05, -0.8509, -0.024, 0.0505, -0.8509, -0.0215, 0.051, -0.8509, -0.0189, 0.0513, -0.8509, -0.0164, 0.0515, -0.8509, -0.0138, 0.0516, -0.8509, -0.0113, 0.0515, -0.8509, -0.0087, 0.0513, -0.8509, -0.0062, 0.051, -0.8509, -0.0037, 0.0505, -0.8509, -0.0012, 0.05, -0.8509, 0.0013, 0.0493, -0.8509, 0.0037, 0.0485, -0.8509, 0.0061, 0.0475, -0.8509, 0.0084, 0.0465, -0.8509, 0.0107, 0.0453, -0.8509, 0.0129, 0.044, -0.8509, 0.0151, 0.0426, -0.8509, 0.0172, 0.0411, -0.8509, 0.0192, 0.0396, -0.8509, 0.0211, 0.0379, -0.8509, 0.0229, 0.0361, -0.8509, 0.0247, 0.0342, -0.8509, 0.0263, 0.0322, -0.8509, 0.0278, 0.0302, -0.8509, 0.0293, 0.0281, -0.8509, 0.0306, 0.0259, -0.8509, 0.0318, 0.0236, -0.8509, 0.033, 0.0213, -0.8509, 0.034, 0.019, -0.8509, 0.0348, 0.0166, -0.8509, 0.0356, 0.0141, -0.8509, 0.0362, 0.0117, -0.8509, 0.0367, 0.0091, -0.8509, 0.0371, 0.0066, -0.8509, 0.0374, 0.0041, -0.8509, 0.0375, 0.0015, -0.8509, 0.0375, -0.0011, -0.8509, 0.0374, -0.0036, -0.8509, 0.0371, -0.0062, -0.8509, 0.0367, -0.0087, -0.8509, 0.0362, -0.0112, -0.8509, 0.0356, -0.0137, -0.8509, 0.0348, -0.0161, -0.8509, 0.034, -0.0185, -0.8509, 0.033, -0.0209, -0.8509, 0.0318, -0.0232, -0.8509, 0.0306, -0.0254, -0.8509, 0.0293, -0.0276, -0.8509, 0.0278, -0.0297, -0.8509, 0.0263, -0.0318, -0.8509, 0.0247, -0.0337, -0.8509, 0.0229, -0.0356, -0.8509, 0.0211, -0.0374, -0.8509, 0.0192, -0.0391, -0.8509, 0.0172, -0.0407, -0.8509, 0.0151, -0.0422, -0.8509, 0.0129, -0.0436, -0.8509, 0.0107, -0.0449, -0.8509, 0.0084, -0.046, -0.8509, 0.0061, -0.0471, -0.8509, 0.0037, -0.048, -0.8509, 0.0013, -0.0488, -0.8509, -0.0012, -0.0495, -0.8509, -0.0037, -0.0501, -0.8509, -0.0062, -0.0505, -0.8509, -0.0087, -0.0509, -0.8509, -0.0113, -0.051, 0.535, -0.0138, 0.7173, -0.8769, -0.0138, 0.7173, -0.8769, -0.4376, 0.7173, 0.535, -0.4376, 0.7173, -0.8769, -0.0138, -0.7169, 0.535, -0.0138, -0.7169, 0.535, -0.4376, -0.7169, -0.8769, -0.4376, -0.7169, 0.9992, 0.2216, -0.2158, 0.93, 0.2059, -0.285, 0.8619, 0.1858, -0.3531, 0.7951, 0.1616, -0.4198, 0.7301, 0.1331, -0.4849, 0.6669, 0.1007, -0.5481, 0.6119, 0.0682, -0.6031, 0.5674, 0.0386, -0.6476, 0.5242, 0.0069, -0.6908, 0.5242, -0.4376, -0.6908, 0.9992, -0.4376, -0.2158, 0.5242, 0.0069, -0.6908, -0.8509, 0.0069, -0.6908, -0.8509, -0.4376, -0.6908, 0.5242, -0.4376, -0.6908, 0.9731, 0.2264, 0.1902, 0.9731, 0.2342, 0.1362, 0.9731, 0.2395, 0.0819, 0.9731, 0.2421, 0.0275, 0.9731, 0.2421, -0.027, 0.9731, 0.2395, -0.0815, 0.9731, 0.2342, -0.1358, 0.9731, 0.2264, -0.1897, 0.9731, -0.4376, -0.1897, 0.9731, -0.4376, 0.1902, 0.9731, -0.0138, -0.0511, 0.9731, -0.0113, -0.051, 0.9731, -0.0087, -0.0509, 0.9731, -0.0062, -0.0505, 0.9731, -0.0037, -0.0501, 0.9731, -0.0012, -0.0495, 0.9731, 0.0013, -0.0488, 0.9731, 0.0037, -0.048, 0.9731, 0.0061, -0.0471, 0.9731, 0.0084, -0.046, 0.9731, 0.0107, -0.0449, 0.9731, 0.0129, -0.0436, 0.9731, 0.0151, -0.0422, 0.9731, 0.0172, -0.0407, 0.9731, 0.0192, -0.0391, 0.9731, 0.0211, -0.0374, 0.9731, 0.0229, -0.0356, 0.9731, 0.0247, -0.0337, 0.9731, 0.0263, -0.0318, 0.9731, 0.0278, -0.0297, 0.9731, 0.0293, -0.0276, 0.9731, 0.0306, -0.0254, 0.9731, 0.0318, -0.0232, 0.9731, 0.033, -0.0209, 0.9731, 0.034, -0.0185, 0.9731, 0.0348, -0.0161, 0.9731, 0.0356, -0.0137, 0.9731, 0.0362, -0.0112, 0.9731, 0.0367, -0.0087, 0.9731, 0.0371, -0.0062, 0.9731, 0.0374, -0.0036, 0.9731, 0.0375, -0.0011, 0.9731, 0.0375, 0.0015, 0.9731, 0.0374, 0.0041, 0.9731, 0.0371, 0.0066, 0.9731, 0.0367, 0.0091, 0.9731, 0.0362, 0.0117, 0.9731, 0.0356, 0.0141, 0.9731, 0.0348, 0.0166, 0.9731, 0.034, 0.019, 0.9731, 0.033, 0.0213, 0.9731, 0.0318, 0.0236, 0.9731, 0.0306, 0.0259, 0.9731, 0.0293, 0.0281, 0.9731, 0.0278, 0.0302, 0.9731, 0.0263, 0.0322, 0.9731, 0.0247, 0.0342, 0.9731, 0.0229, 0.0361, 0.9731, 0.0211, 0.0379, 0.9731, 0.0192, 0.0396, 0.9731, 0.0172, 0.0411, 0.9731, 0.0151, 0.0426, 0.9731, 0.0129, 0.044, 0.9731, 0.0107, 0.0453, 0.9731, 0.0084, 0.0465, 0.9731, 0.0061, 0.0475, 0.9731, 0.0037, 0.0485, 0.9731, 0.0013, 0.0493, 0.9731, -0.0012, 0.05, 0.9731, -0.0037, 0.0505, 0.9731, -0.0062, 0.051, 0.9731, -0.0087, 0.0513, 0.9731, -0.0113, 0.0515, 0.9731, -0.0138, 0.0516, 0.9731, -0.0164, 0.0515, 0.9731, -0.0189, 0.0513, 0.9731, -0.0215, 0.051, 0.9731, -0.024, 0.0505, 0.9731, -0.0265, 0.05, 0.9731, -0.029, 0.0493, 0.9731, -0.0314, 0.0485, 0.9731, -0.0338, 0.0475, 0.9731, -0.0361, 0.0465, 0.9731, -0.0384, 0.0453, 0.9731, -0.0406, 0.044, 0.9731, -0.0428, 0.0426, 0.9731, -0.0448, 0.0411, 0.9731, -0.0468, 0.0396, 0.9731, -0.0488, 0.0379, 0.9731, -0.0506, 0.0361, 0.9731, -0.0523, 0.0342, 0.9731, -0.054, 0.0322, 0.9731, -0.0555, 0.0302, 0.9731, -0.057, 0.0281, 0.9731, -0.0583, 0.0259, 0.9731, -0.0595, 0.0236, 0.9731, -0.0606, 0.0213, 0.9731, -0.0616, 0.019, 0.9731, -0.0625, 0.0166, 0.9731, -0.0633, 0.0141, 0.9731, -0.0639, 0.0117, 0.9731, -0.0644, 0.0091, 0.9731, -0.0648, 0.0066, 0.9731, -0.065, 0.0041, 0.9731, -0.0652, 0.0015, 0.9731, -0.0652, -0.0011, 0.9731, -0.065, -0.0036, 0.9731, -0.0648, -0.0062, 0.9731, -0.0644, -0.0087, 0.9731, -0.0639, -0.0112, 0.9731, -0.0633, -0.0137, 0.9731, -0.0625, -0.0161, 0.9731, -0.0616, -0.0185, 0.9731, -0.0606, -0.0209, 0.9731, -0.0595, -0.0232, 0.9731, -0.0583, -0.0254, 0.9731, -0.057, -0.0276, 0.9731, -0.0555, -0.0297, 0.9731, -0.054, -0.0318, 0.9731, -0.0523, -0.0337, 0.9731, -0.0506, -0.0356, 0.9731, -0.0488, -0.0374, 0.9731, -0.0468, -0.0391, 0.9731, -0.0448, -0.0407, 0.9731, -0.0428, -0.0422, 0.9731, -0.0406, -0.0436, 0.9731, -0.0384, -0.0449, 0.9731, -0.0361, -0.046, 0.9731, -0.0338, -0.0471, 0.9731, -0.0314, -0.048, 0.9731, -0.029, -0.0488, 0.9731, -0.0265, -0.0495, 0.9731, -0.024, -0.0501, 0.9731, -0.0215, -0.0505, 0.9731, -0.0189, -0.0509, 0.9731, -0.0164, -0.051, 0.9731, 0.2264, -0.1897, -0.8509, 0.2264, -0.1897, -0.8509, -0.4376, -0.1897, 0.9731, -0.4376, -0.1897, 0.9992, 0.2216, 0.2163, -0.8509, 0.2216, 0.2163, -0.8509, -0.4376, 0.2163, 0.9992, -0.4376, 0.2163, -0.8509, 0.2216, 0.2163, -0.8509, 0.2104, 0.2676, -0.8509, 0.1968, 0.3184, -0.8509, 0.1808, 0.3685, -0.8509, 0.1625, 0.4179, -0.8509, 0.142, 0.4663, -0.8509, 0.1192, 0.5137, -0.8509, 0.0943, 0.56, -0.8509, 0.0672, 0.6051, -0.8509, 0.038, 0.6489, -0.8509, 0.0069, 0.6912, -0.8509, -0.4376, 0.6912, -0.8509, -0.4376, 0.2163, 0.535, -0.0138, -0.7169, 0.5824, 0.0229, -0.6695, 0.6316, 0.0571, -0.6203, 0.6826, 0.0886, -0.5693, 0.7352, 0.1174, -0.5167, 0.7892, 0.1434, -0.4627, 0.8445, 0.1665, -0.4073, 0.901, 0.1866, -0.3509, 0.9585, 0.2037, -0.2934, 0.9918, 0.2121, -0.2601, 1.0253, 0.2195, -0.2266, 1.0253, -0.4376, -0.2266, 0.535, -0.4376, -0.7169, 1.0253, 0.2195, 0.2271, 0.9533, 0.2023, 0.299, 0.8826, 0.1804, 0.3697, 0.8135, 0.1539, 0.4388, 0.7529, 0.1263, 0.4995, 0.6998, 0.0985, 0.5525, 0.6483, 0.0678, 0.6041, 0.5984, 0.0345, 0.6539, 0.5663, 0.0109, 0.686, 0.535, -0.0138, 0.7173, 0.535, -0.4376, 0.7173, 1.0253, -0.4376, 0.2271, -0.8769, -0.4376, -0.7169, -0.8769, -0.4376, -0.1391, -0.9258, -0.4376, -0.0902, -0.9258, -0.4376, -0.0625, -0.8769, -0.4376, -0.0625, -0.8769, -0.4376, 0.063, -0.9258, -0.4376, 0.063, -0.9258, -0.4376, 0.0907, -0.8769, -0.4376, 0.1396, -0.8769, -0.4376, 0.7173, 0.535, -0.4376, 0.7173, 1.0253, -0.4376, 0.2271, 1.0253, -0.4376, -0.2266, 0.535, -0.4376, -0.7169, 0.5242, -0.4376, 0.6912, -0.8509, -0.4376, 0.6912, -0.8509, -0.4376, 0.2163, 0.9992, -0.4376, 0.2163, -0.8509, -0.4376, 0.1902, -0.8509, -0.4376, -0.1897, 0.9731, -0.4376, -0.1897, 0.9731, -0.4376, 0.1902, -0.8509, -0.4376, -0.2158, -0.8509, -0.4376, -0.6908, 0.5242, -0.4376, -0.6908, 0.9992, -0.4376, -0.2158], "faces": [260, 95, 96, 260, 261, 262, 260, 96, 97, 263, 264, 265, 263, 265, 266, 267, 219, 218, 267, 220, 219, 267, 268, 220, 129, 130, 256, 269, 264, 263, 269, 260, 262, 269, 262, 264, 269, 95, 260, 269, 93, 94, 269, 94, 95, 270, 268, 267, 270, 266, 268, 270, 263, 266, 271, 217, 216, 271, 218, 217, 271, 267, 218, 272, 269, 263, 272, 91, 92, 272, 92, 93, 272, 93, 269, 273, 270, 267, 274, 215, 214, 274, 216, 215, 274, 271, 216, 275, 263, 270, 275, 272, 263, 275, 91, 272, 275, 89, 90, 275, 90, 91, 276, 267, 271, 276, 271, 274, 125, 126, 127, 276, 273, 267, 277, 213, 212, 277, 214, 213, 277, 274, 214, 278, 270, 273, 278, 273, 276, 278, 275, 270, 278, 89, 275, 278, 87, 88, 278, 88, 89, 279, 276, 274, 280, 211, 210, 280, 212, 211, 280, 277, 212, 281, 278, 276, 281, 87, 278, 281, 85, 86, 281, 86, 87, 282, 274, 277, 282, 279, 274, 283, 209, 208, 283, 210, 209, 283, 280, 210, 284, 85, 281, 284, 276, 279, 284, 281, 276, 284, 83, 84, 284, 84, 85, 285, 280, 283, 285, 282, 277, 285, 277, 280, 286, 207, 206, 286, 208, 207, 286, 283, 208, 287, 279, 282, 287, 81, 82, 287, 82, 83, 287, 282, 285, 287, 83, 284, 287, 284, 279, 288, 285, 283, 289, 205, 204, 289, 206, 205, 289, 286, 206, 290, 287, 285, 290, 285, 288, 290, 81, 287, 290, 79, 80, 290, 80, 81, 291, 283, 286, 291, 288, 283, 292, 203, 202, 292, 204, 203, 292, 289, 204, 293, 290, 288, 293, 77, 78, 293, 78, 79, 293, 79, 290, 294, 291, 286, 294, 286, 289, 295, 292, 202, 295, 201, 200, 295, 202, 201, 296, 77, 293, 296, 75, 76, 296, 76, 77, 296, 288, 291, 296, 293, 288, 297, 289, 292, 297, 294, 289, 297, 292, 295, 298, 295, 200, 298, 199, 198, 298, 200, 199, 299, 291, 294, 299, 75, 296, 299, 73, 74, 299, 74, 75, 299, 296, 291, 300, 297, 295, 301, 298, 198, 301, 197, 196, 301, 198, 197, 302, 294, 297, 302, 73, 299, 302, 299, 294, 302, 71, 72, 302, 72, 73, 303, 300, 295, 303, 295, 298, 304, 301, 196, 304, 195, 194, 304, 196, 195, 305, 71, 302, 305, 300, 303, 305, 69, 70, 305, 70, 71, 305, 297, 300, 305, 302, 297, 306, 303, 298, 306, 298, 301, 307, 304, 194, 307, 193, 192, 307, 194, 193, 308, 69, 305, 308, 305, 303, 308, 67, 68, 308, 68, 69, 309, 304, 307, 309, 301, 304, 309, 306, 301, 310, 307, 192, 310, 191, 190, 310, 192, 191, 311, 308, 303, 311, 303, 306, 311, 65, 66, 311, 66, 67, 311, 67, 308, 312, 309, 307, 313, 189, 188, 313, 190, 189, 313, 310, 190, 314, 306, 309, 314, 63, 64, 314, 64, 65, 314, 65, 311, 314, 311, 306, 315, 307, 310, 315, 312, 307, 316, 187, 186, 316, 188, 187, 316, 313, 188, 317, 63, 314, 317, 309, 312, 317, 61, 62, 317, 62, 63, 317, 314, 309, 318, 315, 310, 318, 310, 313, 319, 316, 186, 319, 185, 184, 319, 186, 185, 320, 61, 317, 320, 59, 60, 320, 60, 61, 320, 315, 318, 320, 312, 315, 320, 317, 312, 321, 313, 316, 321, 318, 313, 322, 319, 184, 322, 183, 182, 322, 184, 183, 323, 59, 320, 323, 320, 318, 323, 57, 58, 323, 58, 59, 324, 319, 322, 324, 321, 316, 324, 316, 319, 325, 322, 182, 325, 181, 180, 325, 182, 181, 326, 57, 323, 326, 55, 56, 326, 56, 57, 326, 318, 321, 326, 323, 318, 327, 324, 322, 328, 325, 180, 328, 179, 178, 328, 180, 179, 329, 321, 324, 329, 326, 321, 329, 55, 326, 329, 53, 54, 329, 54, 55, 329, 324, 327, 330, 327, 322, 330, 322, 325, 331, 328, 178, 331, 177, 176, 331, 178, 177, 332, 329, 327, 332, 53, 329, 332, 51, 52, 332, 52, 53, 333, 325, 328, 333, 330, 325, 334, 331, 176, 334, 175, 174, 334, 176, 175, 335, 330, 333, 335, 332, 327, 335, 49, 50, 335, 50, 51, 335, 51, 332, 335, 327, 330, 336, 328, 331, 336, 333, 328, 337, 334, 174, 337, 173, 172, 337, 174, 173, 338, 47, 48, 338, 48, 49, 338, 335, 333, 338, 49, 335, 339, 336, 331, 339, 331, 334, 340, 337, 172, 340, 171, 170, 340, 172, 171, 341, 45, 46, 341, 46, 47, 341, 336, 339, 341, 47, 338, 341, 333, 336, 341, 338, 333, 342, 337, 340, 342, 334, 337, 342, 339, 334, 343, 169, 168, 343, 170, 169, 343, 340, 170, 344, 43, 44, 344, 44, 45, 344, 45, 341, 344, 341, 339, 345, 342, 340, 346, 167, 166, 346, 168, 167, 346, 343, 168, 347, 41, 42, 347, 42, 43, 347, 43, 344, 347, 339, 342, 347, 344, 339, 348, 340, 343, 348, 345, 340, 349, 346, 166, 349, 165, 164, 349, 166, 165, 350, 345, 348, 350, 342, 345, 350, 39, 40, 350, 40, 41, 350, 41, 347, 350, 347, 342, 351, 348, 343, 351, 343, 346, 352, 349, 164, 352, 163, 162, 352, 164, 163, 353, 37, 38, 353, 38, 39, 353, 350, 348, 353, 39, 350, 354, 351, 346, 354, 346, 349, 355, 352, 162, 355, 161, 160, 355, 162, 161, 356, 353, 348, 356, 35, 36, 356, 36, 37, 356, 37, 353, 356, 348, 351, 357, 354, 349, 357, 349, 352, 358, 355, 160, 358, 159, 158, 358, 160, 159, 359, 356, 351, 359, 33, 34, 359, 34, 35, 359, 351, 354, 359, 35, 356, 360, 352, 355, 360, 357, 352, 360, 355, 358, 361, 358, 158, 361, 157, 156, 361, 158, 157, 362, 33, 359, 362, 357, 360, 362, 31, 32, 362, 32, 33, 362, 359, 354, 362, 354, 357, 363, 360, 358, 364, 361, 156, 364, 155, 154, 364, 156, 155, 365, 29, 30, 365, 30, 31, 365, 31, 362, 365, 362, 360, 366, 358, 361, 366, 363, 358, 366, 361, 364, 367, 364, 154, 367, 153, 152, 367, 154, 153, 368, 27, 28, 368, 28, 29, 368, 29, 365, 368, 360, 363, 368, 365, 360, 369, 366, 364, 370, 151, 150, 370, 152, 151, 370, 367, 152, 371, 25, 26, 371, 26, 27, 371, 27, 368, 371, 363, 366, 371, 368, 363, 372, 364, 367, 372, 369, 364, 373, 370, 150, 373, 149, 148, 373, 150, 149, 374, 366, 369, 374, 23, 24, 374, 24, 25, 374, 25, 371, 374, 371, 366, 375, 370, 373, 375, 372, 367, 375, 367, 370, 376, 147, 146, 376, 148, 147, 376, 373, 148, 377, 23, 374, 377, 21, 22, 377, 22, 23, 377, 374, 369, 377, 369, 372, 378, 375, 373, 379, 145, 144, 379, 146, 145, 379, 376, 146, 380, 21, 377, 380, 19, 20, 380, 20, 21, 380, 372, 375, 380, 377, 372, 381, 378, 373, 381, 373, 376, 382, 143, 142, 382, 144, 143, 382, 379, 144, 383, 17, 18, 383, 18, 19, 383, 19, 380, 383, 375, 378, 383, 380, 375, 384, 376, 379, 384, 381, 376, 385, 141, 140, 385, 142, 141, 385, 382, 142, 386, 383, 378, 386, 381, 384, 386, 15, 16, 386, 16, 17, 386, 378, 381, 386, 17, 383, 387, 379, 382, 387, 384, 379, 388, 385, 140, 388, 139, 138, 388, 140, 139, 389, 15, 386, 389, 13, 14, 389, 14, 15, 389, 386, 384, 390, 387, 382, 390, 382, 385, 391, 137, 136, 391, 138, 137, 391, 388, 138, 392, 11, 12, 392, 12, 13, 392, 389, 384, 392, 13, 389, 392, 384, 387, 393, 390, 385, 393, 385, 388, 394, 135, 134, 394, 136, 135, 394, 391, 136, 395, 390, 393, 395, 9, 10, 395, 10, 11, 395, 11, 392, 395, 392, 387, 395, 387, 390, 396, 388, 391, 396, 393, 388, 397, 394, 134, 397, 133, 132, 397, 134, 133, 397, 132, 259, 398, 7, 8, 398, 8, 9, 398, 9, 395, 398, 395, 393, 399, 396, 391, 399, 391, 394, 400, 5, 6, 400, 6, 7, 400, 7, 398, 400, 396, 399, 400, 393, 396, 400, 398, 393, 401, 394, 397, 401, 397, 259, 401, 259, 258, 401, 399, 394, 402, 3, 4, 402, 4, 5, 402, 5, 400, 402, 400, 399, 403, 1, 2, 403, 2, 3, 403, 258, 257, 403, 3, 402, 403, 399, 401, 403, 401, 258, 403, 402, 399, 403, 257, 1, 259, 132, 131, 0, 1, 257, 404, 255, 254, 404, 256, 255, 404, 129, 256, 405, 404, 254, 405, 253, 252, 405, 254, 253, 406, 128, 129, 406, 129, 404, 407, 251, 250, 407, 252, 251, 407, 405, 252, 408, 406, 404, 408, 404, 405, 409, 249, 248, 409, 250, 249, 409, 407, 250, 410, 123, 124, 410, 124, 125, 410, 127, 128, 410, 125, 127, 410, 128, 406, 411, 405, 407, 411, 408, 405, 412, 247, 246, 412, 248, 247, 412, 409, 248, 413, 406, 408, 413, 121, 122, 413, 122, 123, 413, 123, 410, 413, 410, 406, 414, 407, 409, 414, 411, 407, 415, 412, 246, 415, 245, 244, 415, 246, 245, 416, 413, 408, 416, 119, 120, 416, 120, 121, 416, 121, 413, 416, 408, 411, 417, 409, 412, 417, 412, 415, 417, 414, 409, 418, 415, 244, 418, 243, 242, 418, 244, 243, 419, 117, 118, 419, 118, 119, 419, 416, 411, 419, 119, 416, 419, 411, 414, 420, 417, 415, 421, 241, 240, 421, 242, 241, 421, 418, 242, 422, 115, 116, 422, 116, 117, 422, 419, 414, 422, 414, 417, 422, 117, 419, 423, 420, 415, 423, 415, 418, 424, 421, 240, 424, 239, 238, 424, 240, 239, 425, 113, 114, 425, 114, 115, 425, 422, 417, 425, 115, 422, 425, 417, 420, 426, 418, 421, 426, 423, 418, 427, 237, 236, 427, 238, 237, 427, 424, 238, 428, 111, 112, 428, 112, 113, 428, 425, 420, 428, 420, 423, 428, 113, 425, 429, 426, 421, 429, 421, 424, 430, 235, 234, 430, 236, 235, 430, 427, 236, 431, 423, 426, 431, 109, 110, 431, 110, 111, 431, 426, 429, 431, 428, 423, 431, 111, 428, 432, 424, 427, 432, 429, 424, 433, 233, 232, 433, 234, 233, 433, 430, 234, 434, 107, 108, 434, 108, 109, 434, 109, 431, 434, 431, 429, 435, 432, 427, 435, 427, 430, 435, 430, 433, 436, 433, 232, 436, 231, 230, 436, 232, 231, 437, 105, 106, 437, 106, 107, 437, 107, 434, 437, 434, 429, 437, 429, 432, 438, 435, 433, 439, 229, 228, 439, 230, 229, 439, 436, 230, 440, 103, 104, 440, 104, 105, 440, 432, 435, 440, 105, 437, 440, 437, 432, 441, 433, 436, 441, 438, 433, 441, 436, 439, 442, 227, 226, 442, 228, 227, 442, 439, 228, 443, 101, 102, 443, 102, 103, 443, 103, 440, 443, 435, 438, 443, 440, 435, 444, 441, 439, 265, 225, 224, 265, 226, 225, 265, 442, 226, 445, 101, 443, 445, 100, 101, 445, 443, 438, 445, 438, 441, 445, 99, 100, 262, 444, 439, 262, 439, 442, 266, 265, 224, 266, 223, 222, 266, 224, 223, 261, 445, 441, 261, 99, 445, 261, 444, 262, 261, 441, 444, 261, 97, 98, 261, 98, 99, 264, 262, 442, 264, 442, 265, 268, 221, 220, 268, 222, 221, 268, 266, 222, 260, 97, 261, 536, 456, 537, 538, 537, 456, 535, 456, 536, 539, 538, 456, 534, 456, 535, 540, 539, 456, 533, 456, 534, 541, 540, 456, 532, 456, 533, 542, 541, 456, 531, 456, 532, 543, 542, 456, 530, 456, 531, 544, 543, 456, 529, 456, 530, 545, 544, 456, 528, 456, 529, 546, 545, 456, 527, 456, 528, 547, 546, 456, 526, 456, 527, 548, 547, 456, 525, 456, 526, 549, 548, 456, 524, 456, 525, 550, 549, 456, 551, 550, 456, 552, 456, 457, 552, 551, 456, 553, 552, 457, 554, 553, 457, 555, 554, 457, 556, 555, 457, 557, 556, 457, 558, 557, 457, 559, 558, 457, 560, 559, 457, 561, 560, 457, 562, 561, 457, 563, 562, 457, 564, 563, 457, 565, 564, 457, 566, 565, 457, 567, 566, 457, 568, 567, 457, 455, 509, 508, 455, 510, 509, 455, 511, 510, 455, 512, 511, 455, 513, 512, 455, 514, 513, 455, 515, 514, 455, 516, 515, 455, 517, 516, 455, 518, 517, 455, 519, 518, 455, 520, 519, 455, 521, 520, 455, 522, 521, 455, 523, 522, 455, 524, 523, 455, 456, 524, 569, 568, 457, 570, 569, 457, 571, 570, 457, 572, 571, 457, 573, 572, 457, 574, 573, 457, 575, 574, 457, 454, 455, 508, 454, 505, 504, 454, 506, 505, 454, 507, 506, 454, 508, 507, 576, 575, 457, 577, 576, 457, 578, 577, 457, 579, 578, 457, 580, 579, 457, 581, 580, 457, 453, 454, 504, 453, 500, 499, 453, 501, 500, 453, 502, 501, 453, 503, 502, 453, 504, 503, 452, 495, 494, 452, 496, 495, 452, 497, 496, 452, 498, 497, 452, 499, 498, 452, 453, 499, 451, 491, 490, 451, 492, 491, 451, 493, 492, 451, 494, 493, 451, 452, 494, 450, 451, 490, 450, 486, 485, 450, 487, 486, 450, 488, 487, 450, 489, 488, 450, 490, 489, 449, 481, 480, 449, 482, 481, 449, 483, 482, 449, 484, 483, 449, 485, 484, 449, 450, 485, 448, 476, 475, 448, 477, 476, 448, 478, 477, 448, 479, 478, 448, 480, 479, 448, 449, 480, 447, 472, 471, 447, 473, 472, 447, 474, 473, 447, 475, 474, 447, 448, 475, 446, 459, 458, 446, 460, 459, 446, 461, 460, 446, 462, 461, 446, 463, 462, 446, 581, 457, 446, 464, 463, 446, 465, 464, 446, 466, 465, 446, 467, 466, 446, 468, 467, 446, 469, 468, 446, 470, 469, 446, 471, 470, 446, 582, 581, 446, 583, 582, 446, 458, 583, 446, 447, 471, 757, 662, 663, 758, 662, 757, 758, 661, 662, 756, 663, 664, 756, 757, 663, 759, 661, 758, 759, 660, 661, 755, 756, 664, 755, 664, 665, 760, 660, 759, 760, 659, 660, 754, 665, 666, 754, 755, 665, 761, 659, 760, 761, 658, 659, 753, 754, 666, 753, 666, 667, 762, 658, 761, 762, 657, 658, 752, 667, 668, 752, 753, 667, 763, 657, 762, 763, 656, 657, 751, 752, 668, 751, 668, 669, 764, 656, 763, 764, 655, 656, 750, 751, 669, 750, 669, 670, 765, 655, 764, 765, 654, 655, 749, 750, 670, 749, 670, 671, 766, 654, 765, 766, 653, 654, 748, 749, 671, 748, 671, 672, 767, 653, 766, 767, 652, 653, 747, 748, 672, 747, 672, 673, 768, 651, 652, 768, 652, 767, 746, 747, 673, 746, 673, 674, 769, 650, 651, 769, 651, 768, 745, 746, 674, 745, 674, 675, 770, 650, 769, 770, 649, 650, 744, 745, 675, 744, 675, 676, 771, 648, 649, 771, 649, 770, 743, 744, 676, 743, 676, 677, 772, 648, 771, 772, 647, 648, 742, 677, 678, 742, 743, 677, 773, 647, 772, 773, 646, 647, 741, 678, 679, 741, 742, 678, 774, 645, 646, 774, 646, 773, 740, 741, 679, 740, 679, 680, 775, 644, 645, 775, 645, 774, 739, 740, 680, 739, 680, 681, 776, 643, 644, 776, 644, 775, 738, 739, 681, 738, 681, 682, 777, 643, 776, 777, 642, 643, 737, 738, 682, 737, 682, 683, 778, 642, 777, 778, 641, 642, 736, 737, 683, 736, 683, 684, 779, 641, 778, 779, 640, 641, 735, 684, 685, 735, 736, 684, 780, 640, 779, 780, 639, 640, 734, 685, 686, 734, 735, 685, 781, 639, 780, 781, 638, 639, 733, 686, 687, 733, 734, 686, 782, 637, 638, 782, 638, 781, 732, 687, 688, 732, 733, 687, 783, 637, 782, 783, 636, 637, 731, 688, 689, 731, 732, 688, 784, 636, 783, 730, 689, 690, 730, 731, 689, 785, 634, 635, 785, 635, 636, 785, 636, 784, 729, 690, 691, 729, 730, 690, 786, 634, 785, 633, 634, 786, 728, 691, 692, 728, 729, 691, 787, 633, 786, 727, 692, 693, 727, 728, 692, 788, 632, 633, 788, 633, 787, 726, 693, 694, 726, 727, 693, 631, 788, 789, 631, 632, 788, 725, 726, 694, 695, 725, 694, 724, 725, 695, 630, 789, 790, 630, 631, 789, 696, 724, 695, 723, 724, 696, 629, 790, 791, 629, 630, 790, 697, 723, 696, 628, 791, 792, 628, 629, 791, 698, 723, 697, 698, 721, 722, 698, 722, 723, 627, 792, 793, 627, 628, 792, 699, 721, 698, 699, 720, 721, 626, 793, 794, 626, 627, 793, 700, 720, 699, 625, 794, 795, 625, 626, 794, 701, 719, 720, 701, 720, 700, 624, 795, 796, 624, 625, 795, 702, 717, 718, 702, 718, 719, 702, 719, 701, 623, 796, 797, 623, 624, 796, 703, 717, 702, 622, 797, 798, 622, 623, 797, 704, 716, 717, 704, 717, 703, 621, 798, 799, 621, 622, 798, 705, 714, 715, 705, 715, 716, 705, 716, 704, 620, 799, 800, 620, 621, 799, 706, 713, 714, 706, 714, 705, 619, 800, 801, 619, 620, 800, 707, 712, 713, 707, 713, 706, 618, 801, 802, 618, 619, 801, 708, 712, 707, 617, 618, 802, 617, 802, 803, 709, 710, 711, 709, 711, 712, 709, 712, 708, 616, 803, 804, 616, 617, 803, 584, 835, 710, 584, 710, 709, 615, 616, 804, 615, 804, 805, 585, 834, 835, 585, 835, 584, 614, 805, 806, 614, 615, 805, 586, 834, 585, 586, 833, 834, 613, 806, 807, 613, 614, 806, 587, 832, 833, 587, 833, 586, 612, 807, 808, 612, 613, 807, 588, 832, 587, 588, 831, 832, 611, 808, 809, 611, 612, 808, 589, 831, 588, 589, 830, 831, 610, 809, 810, 610, 611, 809, 590, 830, 589, 590, 829, 830, 609, 610, 810, 609, 810, 811, 591, 829, 590, 608, 811, 812, 608, 609, 811, 592, 829, 591, 592, 827, 828, 592, 828, 829, 607, 608, 812, 607, 812, 813, 607, 813, 814, 593, 827, 592, 593, 826, 827, 606, 607, 814, 594, 826, 593, 605, 606, 814, 605, 814, 815, 595, 826, 594, 595, 825, 826, 604, 815, 816, 604, 605, 815, 596, 825, 595, 596, 823, 824, 596, 824, 825, 603, 604, 816, 603, 816, 817, 597, 822, 823, 597, 823, 596, 602, 817, 818, 602, 603, 817, 598, 822, 597, 598, 821, 822, 601, 818, 819, 601, 602, 818, 599, 820, 821, 599, 821, 598, 600, 601, 819, 600, 819, 820, 600, 820, 599, 962, 964, 963, 962, 965, 964, 961, 966, 965, 961, 965, 962, 960, 967, 966, 960, 966, 961, 959, 968, 967, 959, 967, 960, 958, 969, 968, 958, 968, 959, 957, 970, 969, 957, 969, 958, 956, 971, 970, 956, 970, 957, 955, 972, 971, 955, 971, 956, 954, 973, 972, 954, 972, 955, 953, 974, 973, 953, 973, 954, 952, 974, 953, 952, 975, 974, 951, 975, 952, 951, 976, 975, 950, 976, 951, 950, 977, 976, 949, 977, 950, 949, 978, 977, 948, 978, 949, 948, 979, 978, 947, 979, 948, 947, 980, 979, 946, 980, 947, 946, 981, 980, 945, 981, 946, 945, 982, 981, 944, 982, 945, 944, 983, 982, 943, 983, 944, 943, 984, 983, 942, 984, 943, 942, 985, 984, 941, 985, 942, 941, 986, 985, 940, 987, 986, 940, 986, 941, 939, 988, 987, 939, 987, 940, 938, 989, 988, 938, 988, 939, 937, 990, 989, 937, 989, 938, 936, 991, 990, 936, 990, 937, 935, 992, 991, 935, 991, 936, 934, 993, 992, 934, 992, 935, 933, 994, 993, 933, 993, 934, 932, 995, 994, 932, 994, 933, 931, 996, 995, 931, 995, 932, 930, 997, 996, 930, 996, 931, 929, 998, 997, 929, 997, 930, 928, 999, 998, 928, 998, 929, 927, 1000, 999, 927, 999, 928, 926, 1000, 927, 926, 1001, 1000, 925, 1001, 926, 925, 1002, 1001, 924, 1002, 925, 924, 1003, 1002, 923, 1003, 924, 923, 1004, 1003, 922, 1004, 923, 922, 1005, 1004, 921, 1005, 922, 921, 1006, 1005, 920, 1006, 921, 920, 1007, 1006, 919, 1007, 920, 919, 1008, 1007, 918, 1008, 919, 918, 1009, 1008, 917, 1009, 918, 917, 1010, 1009, 916, 1010, 917, 916, 1011, 1010, 915, 1011, 916, 915, 1012, 1011, 914, 1012, 915, 914, 1013, 1012, 913, 1013, 914, 913, 1014, 1013, 912, 1014, 913, 912, 1015, 1014, 911, 1015, 912, 911, 1016, 1015, 910, 1016, 911, 910, 1017, 1016, 909, 1017, 910, 909, 1018, 1017, 908, 1018, 909, 908, 1019, 1018, 907, 1019, 908, 907, 1020, 1019, 906, 1020, 907, 906, 1021, 1020, 905, 1022, 1021, 905, 1021, 906, 904, 1023, 1022, 904, 1022, 905, 903, 1024, 1023, 903, 1023, 904, 902, 1025, 1024, 902, 1024, 903, 901, 1025, 902, 901, 1026, 1025, 900, 1026, 901, 900, 1027, 1026, 899, 1027, 900, 899, 1028, 1027, 898, 1028, 899, 898, 1029, 1028, 897, 1029, 898, 897, 1030, 1029, 896, 1030, 897, 896, 1031, 1030, 895, 1031, 896, 895, 1032, 1031, 894, 1032, 895, 894, 1033, 1032, 893, 1033, 894, 893, 1034, 1033, 892, 1034, 893, 892, 1035, 1034, 891, 1035, 892, 891, 1036, 1035, 890, 1036, 891, 890, 1037, 1036, 889, 1038, 1037, 889, 1037, 890, 888, 1039, 1038, 888, 1038, 889, 887, 1040, 1039, 887, 1039, 888, 886, 1041, 1040, 886, 1040, 887, 885, 1042, 1041, 885, 1041, 886, 884, 1043, 1042, 884, 1042, 885, 883, 1044, 1043, 883, 1043, 884, 882, 1045, 1044, 882, 1044, 883, 881, 1046, 1045, 881, 1045, 882, 880, 1047, 1046, 880, 1046, 881, 879, 1048, 1047, 879, 1047, 880, 878, 1049, 1048, 878, 1048, 879, 877, 1050, 1049, 877, 1049, 878, 876, 1051, 1050, 876, 1050, 877, 875, 1051, 876, 875, 1052, 1051, 874, 1052, 875, 874, 1053, 1052, 873, 1053, 874, 873, 1054, 1053, 872, 1054, 873, 872, 1055, 1054, 871, 1056, 1055, 871, 1055, 872, 870, 1057, 1056, 870, 1056, 871, 869, 1058, 1057, 869, 1057, 870, 868, 1059, 1058, 868, 1058, 869, 867, 1060, 1059, 867, 1059, 868, 866, 1061, 1060, 866, 1060, 867, 865, 1062, 1061, 865, 1061, 866, 864, 1063, 1062, 864, 1062, 865, 863, 1064, 1063, 863, 1063, 864, 862, 1065, 1064, 862, 1064, 863, 861, 1066, 1065, 861, 1065, 862, 860, 1067, 1066, 860, 1066, 861, 859, 1068, 1067, 859, 1067, 860, 858, 1069, 1068, 858, 1068, 859, 857, 1070, 1069, 857, 1069, 858, 856, 1071, 1070, 856, 1070, 857, 855, 1072, 1071, 855, 1071, 856, 854, 1073, 1072, 854, 1072, 855, 853, 1074, 1073, 853, 1073, 854, 852, 1075, 1074, 852, 1074, 853, 851, 1075, 852, 851, 1076, 1075, 850, 1076, 851, 850, 1077, 1076, 849, 1077, 850, 849, 1078, 1077, 848, 1078, 849, 848, 1079, 1078, 847, 1079, 848, 847, 1080, 1079, 846, 1080, 847, 846, 1081, 1080, 845, 1081, 846, 845, 1082, 1081, 844, 1082, 845, 844, 1083, 1082, 843, 1083, 844, 843, 1084, 1083, 842, 1084, 843, 842, 1085, 1084, 841, 1085, 842, 841, 1086, 1085, 841, 1087, 1086, 840, 1087, 841, 839, 1087, 840, 839, 1088, 1087, 838, 1088, 839, 838, 1089, 1088, 837, 1089, 838, 837, 836, 1089, 1216, 1218, 1217, 1216, 1219, 1218, 1215, 1220, 1219, 1215, 1219, 1216, 1214, 1221, 1220, 1214, 1220, 1215, 1213, 1222, 1221, 1213, 1221, 1214, 1212, 1223, 1222, 1212, 1222, 1213, 1211, 1224, 1223, 1211, 1223, 1212, 1210, 1225, 1224, 1210, 1224, 1211, 1209, 1226, 1225, 1209, 1225, 1210, 1208, 1227, 1226, 1208, 1226, 1209, 1207, 1228, 1227, 1207, 1227, 1208, 1206, 1228, 1207, 1206, 1229, 1228, 1205, 1229, 1206, 1205, 1230, 1229, 1204, 1230, 1205, 1204, 1231, 1230, 1203, 1231, 1204, 1203, 1232, 1231, 1202, 1232, 1203, 1202, 1233, 1232, 1201, 1233, 1202, 1201, 1234, 1233, 1200, 1234, 1201, 1200, 1235, 1234, 1199, 1235, 1200, 1199, 1236, 1235, 1198, 1236, 1199, 1198, 1237, 1236, 1197, 1237, 1198, 1197, 1238, 1237, 1196, 1238, 1197, 1196, 1239, 1238, 1195, 1239, 1196, 1195, 1240, 1239, 1194, 1241, 1240, 1194, 1240, 1195, 1193, 1242, 1241, 1193, 1241, 1194, 1192, 1243, 1242, 1192, 1242, 1193, 1191, 1244, 1243, 1191, 1243, 1192, 1190, 1245, 1244, 1190, 1244, 1191, 1189, 1246, 1245, 1189, 1245, 1190, 1188, 1247, 1246, 1188, 1246, 1189, 1187, 1248, 1247, 1187, 1247, 1188, 1186, 1249, 1248, 1186, 1248, 1187, 1185, 1250, 1249, 1185, 1249, 1186, 1184, 1251, 1250, 1184, 1250, 1185, 1183, 1252, 1251, 1183, 1251, 1184, 1182, 1253, 1252, 1182, 1252, 1183, 1181, 1254, 1253, 1181, 1253, 1182, 1180, 1254, 1181, 1180, 1255, 1254, 1179, 1255, 1180, 1179, 1256, 1255, 1178, 1256, 1179, 1178, 1257, 1256, 1177, 1257, 1178, 1177, 1258, 1257, 1176, 1258, 1177, 1176, 1259, 1258, 1175, 1259, 1176, 1175, 1260, 1259, 1174, 1260, 1175, 1174, 1261, 1260, 1173, 1261, 1174, 1173, 1262, 1261, 1172, 1262, 1173, 1172, 1263, 1262, 1171, 1263, 1172, 1171, 1264, 1263, 1170, 1264, 1171, 1170, 1265, 1264, 1169, 1265, 1170, 1169, 1266, 1265, 1168, 1266, 1169, 1168, 1267, 1266, 1167, 1267, 1168, 1167, 1268, 1267, 1166, 1268, 1167, 1166, 1269, 1268, 1165, 1269, 1166, 1165, 1270, 1269, 1164, 1270, 1165, 1164, 1271, 1270, 1163, 1271, 1164, 1163, 1272, 1271, 1162, 1272, 1163, 1162, 1273, 1272, 1161, 1273, 1162, 1161, 1274, 1273, 1160, 1274, 1161, 1160, 1275, 1274, 1159, 1276, 1275, 1159, 1275, 1160, 1158, 1277, 1276, 1158, 1276, 1159, 1157, 1278, 1277, 1157, 1277, 1158, 1156, 1279, 1278, 1156, 1278, 1157, 1155, 1279, 1156, 1155, 1280, 1279, 1154, 1280, 1155, 1154, 1281, 1280, 1153, 1281, 1154, 1153, 1282, 1281, 1152, 1282, 1153, 1152, 1283, 1282, 1151, 1283, 1152, 1151, 1284, 1283, 1150, 1284, 1151, 1150, 1285, 1284, 1149, 1285, 1150, 1149, 1286, 1285, 1148, 1286, 1149, 1148, 1287, 1286, 1147, 1287, 1148, 1147, 1288, 1287, 1146, 1288, 1147, 1146, 1289, 1288, 1145, 1289, 1146, 1145, 1290, 1289, 1144, 1290, 1145, 1144, 1291, 1290, 1143, 1292, 1291, 1143, 1293, 1292, 1143, 1291, 1144, 1142, 1293, 1143, 1141, 1294, 1293, 1141, 1293, 1142, 1140, 1295, 1294, 1140, 1294, 1141, 1139, 1296, 1295, 1139, 1295, 1140, 1138, 1297, 1296, 1138, 1296, 1139, 1137, 1298, 1297, 1137, 1297, 1138, 1136, 1299, 1298, 1136, 1298, 1137, 1135, 1300, 1299, 1135, 1299, 1136, 1134, 1301, 1300, 1134, 1300, 1135, 1133, 1302, 1301, 1133, 1301, 1134, 1132, 1303, 1302, 1132, 1302, 1133, 1131, 1304, 1303, 1131, 1303, 1132, 1130, 1305, 1304, 1130, 1304, 1131, 1129, 1305, 1130, 1129, 1306, 1305, 1128, 1306, 1129, 1128, 1307, 1306, 1127, 1307, 1128, 1127, 1308, 1307, 1126, 1308, 1127, 1126, 1309, 1308, 1125, 1310, 1309, 1125, 1309, 1126, 1124, 1311, 1310, 1124, 1310, 1125, 1123, 1312, 1311, 1123, 1311, 1124, 1122, 1313, 1312, 1122, 1312, 1123, 1121, 1314, 1313, 1121, 1313, 1122, 1120, 1315, 1314, 1120, 1314, 1121, 1119, 1316, 1315, 1119, 1315, 1120, 1118, 1317, 1316, 1118, 1316, 1119, 1117, 1318, 1317, 1117, 1317, 1118, 1116, 1319, 1318, 1116, 1318, 1117, 1115, 1320, 1319, 1115, 1319, 1116, 1114, 1321, 1320, 1114, 1320, 1115, 1113, 1322, 1321, 1113, 1321, 1114, 1112, 1323, 1322, 1112, 1322, 1113, 1111, 1324, 1323, 1111, 1323, 1112, 1110, 1325, 1324, 1110, 1324, 1111, 1109, 1326, 1325, 1109, 1325, 1110, 1108, 1327, 1326, 1108, 1326, 1109, 1107, 1328, 1327, 1107, 1327, 1108, 1106, 1329, 1328, 1106, 1328, 1107, 1105, 1329, 1106, 1105, 1330, 1329, 1104, 1330, 1105, 1104, 1331, 1330, 1103, 1331, 1104, 1103, 1332, 1331, 1102, 1332, 1103, 1102, 1333, 1332, 1101, 1333, 1102, 1101, 1334, 1333, 1100, 1334, 1101, 1100, 1335, 1334, 1099, 1335, 1100, 1099, 1336, 1335, 1098, 1336, 1099, 1098, 1337, 1336, 1097, 1337, 1098, 1097, 1338, 1337, 1096, 1338, 1097, 1096, 1339, 1338, 1095, 1339, 1096, 1095, 1340, 1339, 1094, 1340, 1095, 1094, 1341, 1340, 1093, 1341, 1094, 1093, 1342, 1341, 1092, 1342, 1093, 1092, 1343, 1342, 1091, 1090, 1343, 1091, 1343, 1092, 1344, 1345, 1346, 1347, 1344, 1346, 1535, 1533, 1532, 1535, 1534, 1533, 1535, 1439, 1534, 1536, 1535, 1532, 1536, 1531, 1530, 1536, 1532, 1531, 1537, 1439, 1535, 1537, 1437, 1438, 1537, 1438, 1439, 1538, 1529, 1528, 1538, 1530, 1529, 1538, 1536, 1530, 1539, 1535, 1536, 1539, 1437, 1537, 1539, 1537, 1535, 1539, 1436, 1437, 1540, 1538, 1528, 1540, 1527, 1526, 1540, 1528, 1527, 1541, 1436, 1539, 1541, 1536, 1538, 1541, 1539, 1536, 1541, 1434, 1435, 1541, 1435, 1436, 1542, 1525, 1524, 1542, 1526, 1525, 1542, 1540, 1526, 1543, 1540, 1542, 1543, 1538, 1540, 1543, 1434, 1541, 1543, 1541, 1538, 1543, 1432, 1433, 1543, 1433, 1434, 1544, 1523, 1522, 1544, 1524, 1523, 1544, 1542, 1524, 1545, 1543, 1542, 1545, 1430, 1431, 1545, 1431, 1432, 1545, 1432, 1543, 1546, 1544, 1522, 1546, 1521, 1520, 1546, 1522, 1521, 1547, 1430, 1545, 1547, 1545, 1542, 1547, 1542, 1544, 1547, 1428, 1429, 1547, 1429, 1430, 1547, 1544, 1546, 1548, 1546, 1520, 1548, 1519, 1518, 1548, 1520, 1519, 1549, 1428, 1547, 1549, 1547, 1546, 1549, 1426, 1427, 1549, 1427, 1428, 1550, 1517, 1516, 1550, 1518, 1517, 1550, 1548, 1518, 1551, 1426, 1549, 1551, 1549, 1546, 1551, 1424, 1425, 1551, 1425, 1426, 1551, 1546, 1548, 1552, 1515, 1514, 1552, 1516, 1515, 1552, 1550, 1516, 1553, 1548, 1550, 1553, 1424, 1551, 1553, 1551, 1548, 1553, 1422, 1423, 1553, 1423, 1424, 1554, 1552, 1514, 1554, 1513, 1512, 1554, 1514, 1513, 1555, 1422, 1553, 1555, 1550, 1552, 1555, 1420, 1421, 1555, 1421, 1422, 1555, 1553, 1550, 1556, 1511, 1510, 1556, 1512, 1511, 1556, 1554, 1512, 1557, 1555, 1552, 1557, 1552, 1554, 1557, 1418, 1419, 1557, 1419, 1420, 1557, 1420, 1555, 1558, 1509, 1508, 1558, 1510, 1509, 1558, 1556, 1510, 1559, 1557, 1554, 1559, 1554, 1556, 1559, 1418, 1557, 1559, 1416, 1417, 1559, 1417, 1418, 1559, 1556, 1558, 1560, 1507, 1506, 1560, 1508, 1507, 1560, 1558, 1508, 1561, 1416, 1559, 1561, 1414, 1415, 1561, 1415, 1416, 1561, 1559, 1558, 1562, 1560, 1506, 1562, 1505, 1504, 1562, 1506, 1505, 1563, 1414, 1561, 1563, 1558, 1560, 1563, 1412, 1413, 1563, 1413, 1414, 1563, 1561, 1558, 1564, 1562, 1504, 1564, 1503, 1502, 1564, 1504, 1503, 1565, 1560, 1562, 1565, 1412, 1563, 1565, 1563, 1560, 1565, 1410, 1411, 1565, 1411, 1412, 1566, 1501, 1500, 1566, 1502, 1501, 1566, 1564, 1502, 1567, 1565, 1562, 1567, 1410, 1565, 1567, 1408, 1409, 1567, 1409, 1410, 1567, 1562, 1564, 1568, 1566, 1500, 1568, 1499, 1498, 1568, 1500, 1499, 1569, 1564, 1566, 1569, 1408, 1567, 1569, 1566, 1568, 1569, 1406, 1407, 1569, 1407, 1408, 1569, 1567, 1564, 1570, 1568, 1498, 1570, 1497, 1496, 1570, 1498, 1497, 1571, 1569, 1568, 1571, 1406, 1569, 1571, 1404, 1405, 1571, 1405, 1406, 1572, 1570, 1496, 1572, 1495, 1494, 1572, 1496, 1495, 1573, 1568, 1570, 1573, 1404, 1571, 1573, 1402, 1403, 1573, 1403, 1404, 1573, 1571, 1568, 1574, 1572, 1494, 1574, 1493, 1492, 1574, 1494, 1493, 1575, 1400, 1401, 1575, 1401, 1402, 1575, 1402, 1573, 1575, 1573, 1570, 1575, 1570, 1572, 1576, 1491, 1490, 1576, 1492, 1491, 1576, 1574, 1492, 1577, 1574, 1576, 1577, 1572, 1574, 1577, 1400, 1575, 1577, 1398, 1399, 1577, 1399, 1400, 1577, 1575, 1572, 1578, 1489, 1488, 1578, 1490, 1489, 1578, 1576, 1490, 1579, 1398, 1577, 1579, 1396, 1397, 1579, 1397, 1398, 1579, 1577, 1576, 1580, 1488, 1487, 1580, 1578, 1488, 1581, 1579, 1576, 1581, 1576, 1578, 1581, 1396, 1579, 1581, 1394, 1395, 1581, 1395, 1396, 1582, 1486, 1485, 1582, 1487, 1486, 1582, 1580, 1487, 1583, 1580, 1582, 1583, 1394, 1581, 1583, 1392, 1393, 1583, 1393, 1394, 1583, 1578, 1580, 1583, 1581, 1578, 1584, 1484, 1483, 1584, 1485, 1484, 1584, 1582, 1485, 1585, 1390, 1391, 1585, 1391, 1392, 1585, 1392, 1583, 1585, 1583, 1582, 1586, 1584, 1483, 1586, 1482, 1481, 1586, 1483, 1482, 1587, 1582, 1584, 1587, 1585, 1582, 1587, 1388, 1389, 1587, 1389, 1390, 1587, 1390, 1585, 1588, 1480, 1479, 1588, 1481, 1480, 1588, 1586, 1481, 1589, 1388, 1587, 1589, 1386, 1387, 1589, 1387, 1388, 1589, 1587, 1584, 1589, 1584, 1586, 1590, 1588, 1479, 1590, 1478, 1477, 1590, 1479, 1478, 1591, 1386, 1589, 1591, 1384, 1385, 1591, 1385, 1386, 1591, 1586, 1588, 1591, 1589, 1586, 1592, 1476, 1475, 1592, 1477, 1476, 1592, 1590, 1477, 1593, 1591, 1588, 1593, 1588, 1590, 1593, 1382, 1383, 1593, 1384, 1591, 1593, 1383, 1384, 1594, 1474, 1473, 1594, 1475, 1474, 1594, 1592, 1475, 1595, 1382, 1593, 1595, 1590, 1592, 1595, 1380, 1381, 1595, 1381, 1382, 1595, 1593, 1590, 1596, 1472, 1471, 1596, 1473, 1472, 1596, 1594, 1473, 1597, 1378, 1379, 1597, 1379, 1380, 1597, 1592, 1594, 1597, 1380, 1595, 1597, 1595, 1592, 1598, 1470, 1469, 1598, 1471, 1470, 1598, 1596, 1471, 1599, 1376, 1377, 1599, 1377, 1378, 1599, 1597, 1594, 1599, 1378, 1597, 1599, 1594, 1596, 1600, 1468, 1467, 1600, 1469, 1468, 1600, 1598, 1469, 1601, 1599, 1596, 1601, 1374, 1375, 1601, 1375, 1376, 1601, 1596, 1598, 1601, 1376, 1599, 1602, 1466, 1465, 1602, 1467, 1466, 1602, 1600, 1467, 1603, 1372, 1373, 1603, 1373, 1374, 1603, 1374, 1601, 1603, 1598, 1600, 1603, 1601, 1598, 1604, 1464, 1463, 1604, 1465, 1464, 1604, 1602, 1465, 1605, 1370, 1371, 1605, 1371, 1372, 1605, 1600, 1602, 1605, 1603, 1600, 1605, 1372, 1603, 1606, 1462, 1461, 1606, 1463, 1462, 1606, 1604, 1463, 1607, 1370, 1605, 1607, 1368, 1369, 1607, 1369, 1370, 1607, 1602, 1604, 1607, 1605, 1602, 1608, 1460, 1459, 1608, 1461, 1460, 1608, 1606, 1461, 1609, 1366, 1367, 1609, 1367, 1368, 1609, 1368, 1607, 1609, 1604, 1606, 1609, 1607, 1604, 1610, 1458, 1457, 1610, 1459, 1458, 1610, 1608, 1459, 1611, 1366, 1609, 1611, 1364, 1365, 1611, 1365, 1366, 1611, 1606, 1608, 1611, 1609, 1606, 1612, 1610, 1457, 1612, 1456, 1455, 1612, 1457, 1456, 1613, 1362, 1363, 1613, 1363, 1364, 1613, 1364, 1611, 1613, 1608, 1610, 1613, 1611, 1608, 1614, 1454, 1453, 1614, 1455, 1454, 1614, 1612, 1455, 1615, 1613, 1610, 1615, 1360, 1361, 1615, 1361, 1362, 1615, 1610, 1612, 1615, 1362, 1613, 1616, 1452, 1451, 1616, 1453, 1452, 1616, 1614, 1453, 1617, 1612, 1614, 1617, 1360, 1615, 1617, 1358, 1359, 1617, 1359, 1360, 1617, 1615, 1612, 1618, 1450, 1449, 1618, 1451, 1450, 1618, 1616, 1451, 1619, 1356, 1357, 1619, 1614, 1616, 1619, 1357, 1358, 1619, 1358, 1617, 1619, 1617, 1614, 1619, 1616, 1618, 1620, 1618, 1449, 1620, 1448, 1447, 1620, 1449, 1448, 1621, 1354, 1355, 1621, 1355, 1356, 1621, 1619, 1618, 1621, 1356, 1619, 1622, 1620, 1447, 1622, 1446, 1445, 1622, 1447, 1446, 1623, 1352, 1353, 1623, 1353, 1354, 1623, 1621, 1618, 1623, 1354, 1621, 1623, 1618, 1620, 1623, 1620, 1622, 1624, 1622, 1445, 1624, 1441, 1440, 1624, 1442, 1441, 1624, 1443, 1442, 1624, 1444, 1443, 1624, 1445, 1444, 1625, 1350, 1351, 1625, 1351, 1352, 1625, 1352, 1623, 1625, 1623, 1622, 1626, 1348, 1349, 1626, 1349, 1350, 1626, 1625, 1622, 1626, 1350, 1625, 1626, 1622, 1624, 1626, 1624, 1440, 1626, 1440, 1348, 1630, 1628, 1627, 1630, 1627, 1629, 1752, 1753, 1754, 1751, 1752, 1754, 1722, 1632, 1631, 1721, 1754, 1632, 1721, 1632, 1722, 1720, 1754, 1721, 1719, 1751, 1754, 1719, 1754, 1720, 1718, 1751, 1719, 1717, 1750, 1751, 1717, 1751, 1718, 1716, 1750, 1717, 1715, 1749, 1750, 1715, 1750, 1716, 1714, 1749, 1715, 1713, 1748, 1749, 1713, 1749, 1714, 1712, 1748, 1713, 1711, 1747, 1748, 1711, 1748, 1712, 1710, 1747, 1711, 1709, 1747, 1710, 1708, 1746, 1747, 1708, 1747, 1709, 1707, 1746, 1708, 1706, 1746, 1707, 1705, 1746, 1706, 1745, 1705, 1704, 1745, 1746, 1705, 1703, 1745, 1704, 1702, 1745, 1703, 1744, 1700, 1699, 1744, 1701, 1700, 1744, 1702, 1701, 1744, 1745, 1702, 1698, 1744, 1699, 1743, 1695, 1694, 1743, 1696, 1695, 1743, 1697, 1696, 1743, 1698, 1697, 1743, 1744, 1698, 1634, 1633, 1723, 1635, 1634, 1723, 1742, 1743, 1694, 1742, 1691, 1690, 1742, 1692, 1691, 1742, 1693, 1692, 1742, 1694, 1693, 1741, 1742, 1690, 1741, 1686, 1685, 1741, 1687, 1686, 1741, 1688, 1687, 1741, 1689, 1688, 1741, 1690, 1689, 1740, 1741, 1685, 1740, 1681, 1680, 1740, 1682, 1681, 1740, 1683, 1682, 1740, 1684, 1683, 1740, 1685, 1684, 1739, 1677, 1676, 1739, 1678, 1677, 1739, 1679, 1678, 1739, 1680, 1679, 1739, 1740, 1680, 1724, 1636, 1635, 1724, 1637, 1636, 1724, 1635, 1723, 1738, 1672, 1671, 1738, 1673, 1672, 1738, 1674, 1673, 1738, 1675, 1674, 1738, 1676, 1675, 1738, 1739, 1676, 1737, 1738, 1671, 1737, 1667, 1666, 1737, 1668, 1667, 1737, 1669, 1668, 1737, 1670, 1669, 1737, 1671, 1670, 1736, 1663, 1662, 1736, 1664, 1663, 1736, 1665, 1664, 1736, 1666, 1665, 1736, 1737, 1666, 1735, 1736, 1662, 1735, 1659, 1658, 1735, 1660, 1659, 1735, 1661, 1660, 1735, 1662, 1661, 1734, 1735, 1658, 1734, 1655, 1654, 1734, 1656, 1655, 1734, 1657, 1656, 1734, 1658, 1657, 1733, 1652, 1651, 1733, 1653, 1652, 1733, 1654, 1653, 1733, 1734, 1654, 1732, 1649, 1648, 1732, 1650, 1649, 1732, 1651, 1650, 1732, 1733, 1651, 1731, 1732, 1648, 1731, 1646, 1645, 1731, 1647, 1646, 1731, 1648, 1647, 1730, 1644, 1643, 1730, 1645, 1644, 1730, 1731, 1645, 1729, 1642, 1641, 1729, 1643, 1642, 1729, 1730, 1643, 1728, 1640, 1639, 1728, 1641, 1640, 1728, 1729, 1641, 1727, 1638, 1637, 1727, 1639, 1638, 1727, 1637, 1724, 1727, 1728, 1639, 1726, 1727, 1724, 1725, 1726, 1724, 1757, 1756, 1755, 1757, 1758, 1756, 1761, 1760, 1759, 1761, 1762, 1760, 1862, 1864, 1863, 1862, 1865, 1864, 1861, 1866, 1865, 1861, 1865, 1862, 1860, 1867, 1866, 1860, 1866, 1861, 1859, 1868, 1867, 1859, 1867, 1860, 1858, 1869, 1868, 1858, 1868, 1859, 1857, 1870, 1869, 1857, 1869, 1858, 1856, 1871, 1870, 1856, 1870, 1857, 1855, 1872, 1871, 1855, 1871, 1856, 1854, 1873, 1872, 1854, 1872, 1855, 1853, 1874, 1873, 1853, 1873, 1854, 1852, 1875, 1874, 1852, 1874, 1853, 1851, 1876, 1875, 1851, 1875, 1852, 1850, 1877, 1876, 1850, 1876, 1851, 1849, 1878, 1877, 1849, 1877, 1850, 1848, 1879, 1878, 1848, 1878, 1849, 1847, 1880, 1879, 1847, 1879, 1848, 1846, 1881, 1880, 1846, 1880, 1847, 1845, 1882, 1881, 1845, 1881, 1846, 1844, 1883, 1882, 1844, 1882, 1845, 1843, 1884, 1883, 1843, 1883, 1844, 1842, 1885, 1884, 1842, 1884, 1843, 1841, 1886, 1885, 1841, 1885, 1842, 1840, 1887, 1886, 1840, 1886, 1841, 1839, 1888, 1887, 1839, 1887, 1840, 1838, 1888, 1839, 1838, 1889, 1888, 1837, 1889, 1838, 1837, 1890, 1889, 1836, 1890, 1837, 1836, 1891, 1890, 1835, 1891, 1836, 1835, 1892, 1891, 1834, 1892, 1835, 1834, 1893, 1892, 1833, 1893, 1834, 1833, 1894, 1893, 1832, 1894, 1833, 1832, 1895, 1894, 1831, 1896, 1895, 1831, 1895, 1832, 1830, 1897, 1896, 1830, 1896, 1831, 1830, 1898, 1897, 1829, 1898, 1830, 1828, 1899, 1898, 1828, 1898, 1829, 1827, 1900, 1899, 1827, 1899, 1828, 1826, 1901, 1900, 1826, 1900, 1827, 1825, 1902, 1901, 1825, 1901, 1826, 1824, 1903, 1902, 1824, 1904, 1903, 1824, 1902, 1825, 1823, 1904, 1824, 1822, 1905, 1904, 1822, 1904, 1823, 1821, 1906, 1905, 1821, 1905, 1822, 1820, 1907, 1906, 1820, 1906, 1821, 1819, 1908, 1907, 1819, 1907, 1820, 1818, 1909, 1908, 1818, 1908, 1819, 1817, 1910, 1909, 1817, 1909, 1818, 1816, 1911, 1910, 1816, 1910, 1817, 1815, 1912, 1911, 1815, 1911, 1816, 1814, 1913, 1912, 1814, 1912, 1815, 1813, 1914, 1913, 1813, 1913, 1814, 1812, 1914, 1813, 1812, 1915, 1914, 1811, 1915, 1812, 1811, 1916, 1915, 1810, 1916, 1811, 1810, 1917, 1916, 1809, 1917, 1810, 1809, 1918, 1917, 1808, 1918, 1809, 1808, 1919, 1918, 1808, 1920, 1919, 1807, 1920, 1808, 1806, 1920, 1807, 1806, 1921, 1920, 1806, 1922, 1921, 1805, 1922, 1806, 1804, 1922, 1805, 1804, 1923, 1922, 1803, 1923, 1804, 1803, 1924, 1923, 1802, 1924, 1803, 1802, 1925, 1924, 1802, 1926, 1925, 1801, 1926, 1802, 1800, 1926, 1801, 1800, 1927, 1926, 1799, 1927, 1800, 1799, 1928, 1927, 1798, 1928, 1799, 1798, 1929, 1928, 1798, 1930, 1929, 1797, 1930, 1798, 1796, 1931, 1930, 1796, 1930, 1797, 1795, 1932, 1931, 1795, 1931, 1796, 1794, 1933, 1932, 1794, 1932, 1795, 1793, 1934, 1933, 1793, 1933, 1794, 1792, 1935, 1934, 1792, 1934, 1793, 1792, 1936, 1935, 1791, 1936, 1792, 1790, 1937, 1936, 1790, 1938, 1937, 1790, 1936, 1791, 1789, 1938, 1790, 1788, 1939, 1938, 1788, 1938, 1789, 1787, 1939, 1788, 1787, 1940, 1939, 1786, 1940, 1787, 1786, 1941, 1940, 1785, 1941, 1786, 1785, 1942, 1941, 1784, 1942, 1785, 1784, 1943, 1942, 1783, 1943, 1784, 1783, 1944, 1943, 1782, 1944, 1783, 1782, 1945, 1944, 1781, 1945, 1782, 1781, 1946, 1945, 1780, 1946, 1781, 1780, 1947, 1946, 1779, 1947, 1780, 1779, 1948, 1947, 1778, 1948, 1779, 1778, 1949, 1948, 1778, 1950, 1949, 1777, 1950, 1778, 1777, 1951, 1950, 1776, 1951, 1777, 1775, 1951, 1776, 1775, 1952, 1951, 1774, 1952, 1775, 1774, 1953, 1952, 1774, 1954, 1953, 1773, 1954, 1774, 1772, 1954, 1773, 1772, 1955, 1954, 1771, 1955, 1772, 1771, 1956, 1955, 1770, 1956, 1771, 1770, 1957, 1956, 1769, 1957, 1770, 1769, 1958, 1957, 1768, 1958, 1769, 1768, 1959, 1958, 1767, 1959, 1768, 1767, 1960, 1959, 1766, 1960, 1767, 1766, 1961, 1960, 1766, 1962, 1961, 1765, 1962, 1766, 1765, 1763, 1962, 1764, 1763, 1765, 2160, 2161, 2162, 1966, 2160, 1965, 1966, 2159, 2160, 1964, 1965, 2160, 1967, 2159, 1966, 1967, 2158, 2159, 1963, 2160, 2162, 1963, 1964, 2160, 1968, 2158, 1967, 1968, 2157, 2158, 1969, 2157, 1968, 1969, 2156, 2157, 1970, 2156, 1969, 1970, 2155, 2156, 1971, 2155, 1970, 1971, 2154, 2155, 1972, 2154, 1971, 1972, 2153, 2154, 1973, 2153, 1972, 1973, 2152, 2153, 1974, 2152, 1973, 1974, 2151, 2152, 1975, 2151, 1974, 1975, 2150, 2151, 1976, 2150, 1975, 1976, 2149, 2150, 1977, 2149, 1976, 1977, 2148, 2149, 1978, 2148, 1977, 1978, 2147, 2148, 1979, 2147, 1978, 1979, 2146, 2147, 1980, 2145, 2146, 1980, 2146, 1979, 1981, 2144, 2145, 1981, 2145, 1980, 1982, 2143, 2144, 1982, 2144, 1981, 1983, 2142, 2143, 1983, 2143, 1982, 1984, 2141, 2142, 1984, 2142, 1983, 1985, 2140, 2141, 1985, 2141, 1984, 1986, 2140, 1985, 1986, 2139, 2140, 1987, 2139, 1986, 1987, 2138, 2139, 1988, 2138, 1987, 1988, 2137, 2138, 1989, 2137, 1988, 1989, 2136, 2137, 1990, 2136, 1989, 1990, 2135, 2136, 1991, 2135, 1990, 1991, 2134, 2135, 1992, 2134, 1991, 1992, 2133, 2134, 1993, 2133, 1992, 1993, 2132, 2133, 1994, 2132, 1993, 1994, 2131, 2132, 1995, 2131, 1994, 1995, 2130, 2131, 1996, 2130, 1995, 1996, 2129, 2130, 2065, 2063, 2064, 2065, 2060, 2061, 2065, 2061, 2062, 2065, 2062, 2063, 1997, 2129, 1996, 2128, 2129, 1997, 2059, 2060, 2065, 2066, 2059, 2065, 1998, 2128, 1997, 2127, 2128, 1998, 2058, 2059, 2066, 1999, 2127, 1998, 2067, 2058, 2066, 2057, 2058, 2067, 2126, 2127, 1999, 2000, 2126, 1999, 2068, 2057, 2067, 2068, 2056, 2057, 2125, 2126, 2000, 2001, 2125, 2000, 2069, 2056, 2068, 2069, 2055, 2056, 2124, 2001, 2002, 2124, 2125, 2001, 2070, 2055, 2069, 2070, 2054, 2055, 2123, 2002, 2003, 2123, 2124, 2002, 2071, 2053, 2054, 2071, 2054, 2070, 2122, 2003, 2004, 2122, 2123, 2003, 2072, 2053, 2071, 2072, 2052, 2053, 2121, 2122, 2004, 2121, 2004, 2005, 2073, 2052, 2072, 2073, 2051, 2052, 2120, 2121, 2005, 2120, 2005, 2006, 2074, 2051, 2073, 2074, 2050, 2051, 2119, 2120, 2006, 2119, 2006, 2007, 2075, 2050, 2074, 2075, 2049, 2050, 2118, 2119, 2007, 2118, 2007, 2008, 2076, 2049, 2075, 2076, 2048, 2049, 2117, 2118, 2008, 2117, 2008, 2009, 2077, 2048, 2076, 2077, 2047, 2048, 2116, 2009, 2010, 2116, 2117, 2009, 2078, 2047, 2077, 2078, 2046, 2047, 2115, 2010, 2011, 2115, 2116, 2010, 2079, 2046, 2078, 2079, 2045, 2046, 2114, 2011, 2012, 2114, 2115, 2011, 2080, 2045, 2079, 2080, 2044, 2045, 2113, 2012, 2013, 2113, 2114, 2012, 2081, 2043, 2044, 2081, 2044, 2080, 2112, 2113, 2013, 2082, 2043, 2081, 2082, 2042, 2043, 2111, 2112, 2013, 2111, 2013, 2014, 2083, 2042, 2082, 2083, 2041, 2042, 2110, 2111, 2014, 2110, 2014, 2015, 2084, 2041, 2083, 2084, 2040, 2041, 2109, 2110, 2015, 2109, 2015, 2016, 2085, 2040, 2084, 2085, 2039, 2040, 2108, 2016, 2017, 2108, 2109, 2016, 2086, 2039, 2085, 2086, 2038, 2039, 2107, 2108, 2017, 2107, 2017, 2018, 2087, 2038, 2086, 2087, 2037, 2038, 2106, 2107, 2018, 2106, 2018, 2019, 2088, 2037, 2087, 2088, 2036, 2037, 2105, 2106, 2019, 2105, 2019, 2020, 2089, 2036, 2088, 2089, 2035, 2036, 2104, 2020, 2021, 2104, 2105, 2020, 2090, 2035, 2089, 2090, 2034, 2035, 2103, 2104, 2021, 2103, 2021, 2022, 2091, 2033, 2034, 2091, 2034, 2090, 2102, 2103, 2022, 2102, 2022, 2023, 2092, 2032, 2033, 2092, 2033, 2091, 2101, 2023, 2024, 2101, 2102, 2023, 2093, 2032, 2092, 2093, 2031, 2032, 2100, 2024, 2025, 2100, 2101, 2024, 2094, 2030, 2031, 2094, 2031, 2093, 2099, 2025, 2026, 2099, 2100, 2025, 2095, 2029, 2030, 2095, 2030, 2094, 2098, 2026, 2027, 2098, 2099, 2026, 2096, 2028, 2029, 2096, 2029, 2095, 2097, 2027, 2028, 2097, 2028, 2096, 2097, 2098, 2027, 2263, 2264, 2163, 2375, 2261, 2262, 2376, 2261, 2375, 2376, 2260, 2261, 2374, 2375, 2262, 2374, 2262, 2263, 2377, 2260, 2376, 2377, 2259, 2260, 2373, 2374, 2263, 2378, 2259, 2377, 2378, 2258, 2259, 2372, 2373, 2263, 2379, 2258, 2378, 2379, 2257, 2258, 2371, 2372, 2263, 2380, 2256, 2257, 2380, 2257, 2379, 2370, 2371, 2263, 2381, 2256, 2380, 2381, 2255, 2256, 2369, 2370, 2263, 2382, 2255, 2381, 2382, 2254, 2255, 2368, 2369, 2263, 2383, 2254, 2382, 2383, 2253, 2254, 2367, 2368, 2263, 2384, 2253, 2383, 2384, 2252, 2253, 2366, 2367, 2263, 2385, 2252, 2384, 2385, 2251, 2252, 2365, 2366, 2263, 2386, 2251, 2385, 2386, 2250, 2251, 2364, 2365, 2263, 2387, 2250, 2386, 2387, 2249, 2250, 2363, 2364, 2263, 2388, 2249, 2387, 2388, 2248, 2249, 2362, 2363, 2263, 2389, 2248, 2388, 2389, 2247, 2248, 2361, 2362, 2263, 2390, 2247, 2389, 2390, 2246, 2247, 2360, 2361, 2263, 2265, 2246, 2390, 2265, 2245, 2246, 2359, 2360, 2263, 2266, 2245, 2265, 2266, 2244, 2245, 2267, 2244, 2266, 2267, 2243, 2244, 2268, 2243, 2267, 2268, 2242, 2243, 2269, 2242, 2268, 2269, 2241, 2242, 2270, 2241, 2269, 2270, 2240, 2241, 2271, 2240, 2270, 2271, 2239, 2240, 2272, 2238, 2239, 2272, 2239, 2271, 2273, 2237, 2238, 2273, 2238, 2272, 2274, 2237, 2273, 2274, 2236, 2237, 2275, 2235, 2236, 2275, 2236, 2274, 2276, 2234, 2235, 2276, 2235, 2275, 2164, 2263, 2163, 2164, 2359, 2263, 2164, 2349, 2350, 2164, 2350, 2351, 2164, 2351, 2352, 2164, 2352, 2353, 2164, 2353, 2354, 2164, 2354, 2355, 2164, 2355, 2356, 2164, 2356, 2357, 2164, 2357, 2358, 2164, 2358, 2359, 2348, 2349, 2164, 2277, 2234, 2276, 2277, 2233, 2234, 2347, 2348, 2164, 2278, 2233, 2277, 2278, 2232, 2233, 2346, 2347, 2164, 2279, 2232, 2278, 2279, 2231, 2232, 2345, 2164, 2165, 2345, 2346, 2164, 2280, 2230, 2231, 2280, 2231, 2279, 2344, 2165, 2166, 2344, 2345, 2165, 2281, 2230, 2280, 2229, 2230, 2281, 2343, 2344, 2166, 2282, 2229, 2281, 2167, 2343, 2166, 2342, 2343, 2167, 2228, 2282, 2283, 2228, 2229, 2282, 2168, 2342, 2167, 2168, 2341, 2342, 2227, 2283, 2284, 2227, 2228, 2283, 2169, 2341, 2168, 2169, 2340, 2341, 2226, 2284, 2285, 2226, 2227, 2284, 2170, 2340, 2169, 2170, 2339, 2340, 2225, 2226, 2285, 2225, 2285, 2286, 2171, 2338, 2339, 2171, 2339, 2170, 2224, 2286, 2287, 2224, 2225, 2286, 2172, 2337, 2338, 2172, 2338, 2171, 2223, 2287, 2288, 2223, 2224, 2287, 2173, 2337, 2172, 2173, 2336, 2337, 2222, 2223, 2288, 2222, 2288, 2289, 2174, 2336, 2173, 2174, 2335, 2336, 2221, 2222, 2289, 2221, 2289, 2290, 2175, 2335, 2174, 2175, 2334, 2335, 2220, 2221, 2290, 2220, 2290, 2291, 2176, 2334, 2175, 2176, 2333, 2334, 2219, 2220, 2291, 2219, 2291, 2292, 2177, 2333, 2176, 2177, 2332, 2333, 2218, 2292, 2293, 2218, 2219, 2292, 2178, 2332, 2177, 2178, 2331, 2332, 2217, 2293, 2294, 2217, 2218, 2293, 2179, 2331, 2178, 2179, 2330, 2331, 2216, 2294, 2295, 2216, 2217, 2294, 2180, 2330, 2179, 2180, 2329, 2330, 2215, 2216, 2295, 2215, 2295, 2296, 2181, 2329, 2180, 2181, 2328, 2329, 2214, 2215, 2296, 2182, 2328, 2181, 2182, 2327, 2328, 2213, 2214, 2296, 2213, 2296, 2297, 2183, 2327, 2182, 2183, 2326, 2327, 2212, 2213, 2297, 2212, 2297, 2298, 2184, 2326, 2183, 2184, 2325, 2326, 2211, 2212, 2298, 2211, 2298, 2299, 2185, 2325, 2184, 2185, 2324, 2325, 2210, 2211, 2299, 2210, 2299, 2300, 2186, 2324, 2185, 2186, 2323, 2324, 2209, 2300, 2301, 2209, 2210, 2300, 2187, 2323, 2186, 2187, 2322, 2323, 2208, 2301, 2302, 2208, 2209, 2301, 2188, 2322, 2187, 2188, 2321, 2322, 2207, 2208, 2302, 2207, 2302, 2303, 2189, 2321, 2188, 2189, 2320, 2321, 2206, 2207, 2303, 2206, 2303, 2304, 2190, 2320, 2189, 2190, 2319, 2320, 2205, 2304, 2305, 2205, 2206, 2304, 2191, 2319, 2190, 2191, 2318, 2319, 2204, 2305, 2306, 2204, 2205, 2305, 2192, 2317, 2318, 2192, 2318, 2191, 2203, 2306, 2307, 2203, 2204, 2306, 2193, 2316, 2317, 2193, 2317, 2192, 2202, 2307, 2308, 2202, 2203, 2307, 2194, 2315, 2316, 2194, 2316, 2193, 2201, 2308, 2309, 2201, 2202, 2308, 2195, 2315, 2194, 2195, 2314, 2315, 2200, 2309, 2310, 2200, 2201, 2309, 2196, 2313, 2314, 2196, 2314, 2195, 2199, 2310, 2311, 2199, 2200, 2310, 2197, 2312, 2313, 2197, 2313, 2196, 2198, 2199, 2311, 2198, 2311, 2312, 2198, 2312, 2197, 2429, 2467, 2420, 2476, 2420, 2467, 2476, 2391, 2420, 2427, 2468, 2428, 2392, 2391, 2476, 2426, 2469, 2427, 2393, 2392, 2485, 2425, 2470, 2426, 2394, 2393, 2484, 2395, 2394, 2483, 2424, 2471, 2425, 2396, 2395, 2482, 2423, 2472, 2424, 2397, 2396, 2481, 2422, 2473, 2423, 2398, 2397, 2480, 2475, 2474, 2422, 2421, 2475, 2422, 2399, 2398, 2479, 2438, 2465, 2421, 2438, 2458, 2465, 2400, 2399, 2478, 2437, 2459, 2438, 2401, 2400, 2477, 2466, 2465, 2458, 2456, 2466, 2458, 2456, 2401, 2466, 2436, 2460, 2437, 2402, 2401, 2456, 2461, 2460, 2436, 2461, 2436, 2435, 2403, 2402, 2455, 2462, 2461, 2435, 2462, 2435, 2434, 2404, 2403, 2454, 2433, 2462, 2434, 2463, 2462, 2433, 2405, 2404, 2453, 2432, 2463, 2433, 2406, 2405, 2452, 2431, 2464, 2432, 2486, 2457, 2431, 2407, 2406, 2451, 2430, 2486, 2431, 2408, 2407, 2450, 2447, 2487, 2448, 2495, 2449, 2457, 2495, 2457, 2486, 2409, 2408, 2449, 2409, 2449, 2495, 2488, 2447, 2446, 2410, 2409, 2505, 2445, 2488, 2446, 2411, 2410, 2504, 2444, 2489, 2445, 2412, 2411, 2503, 2443, 2490, 2444, 2413, 2412, 2502, 2414, 2413, 2501, 2442, 2491, 2443, 2415, 2414, 2500, 2441, 2492, 2442, 2416, 2415, 2499, 2440, 2493, 2441, 2417, 2416, 2498, 2439, 2494, 2440, 2418, 2417, 2497, 2496, 2494, 2439, 2419, 2496, 2439, 2419, 2418, 2496, 2450, 2449, 2408, 2451, 2450, 2407, 2452, 2451, 2406, 2453, 2452, 2405, 2454, 2453, 2404, 2455, 2454, 2403, 2456, 2455, 2402, 2459, 2458, 2438, 2460, 2459, 2437, 2464, 2463, 2432, 2457, 2464, 2431, 2468, 2467, 2428, 2428, 2467, 2429, 2469, 2468, 2427, 2470, 2469, 2426, 2471, 2470, 2425, 2472, 2471, 2424, 2473, 2472, 2423, 2474, 2473, 2422, 2465, 2475, 2421, 2477, 2466, 2401, 2478, 2477, 2400, 2479, 2478, 2399, 2480, 2479, 2398, 2481, 2480, 2397, 2482, 2481, 2396, 2483, 2482, 2395, 2484, 2483, 2394, 2485, 2484, 2393, 2476, 2485, 2392, 2487, 2486, 2448, 2448, 2486, 2430, 2488, 2487, 2447, 2489, 2488, 2445, 2490, 2489, 2444, 2491, 2490, 2443, 2492, 2491, 2442, 2493, 2492, 2441, 2494, 2493, 2440, 2497, 2496, 2418, 2498, 2497, 2417, 2499, 2498, 2416, 2500, 2499, 2415, 2501, 2500, 2414, 2502, 2501, 2413, 2503, 2502, 2412, 2504, 2503, 2411, 2505, 2504, 2410, 2495, 2505, 2409, 2506, 2507, 2508, 2506, 2508, 2509, 2518, 2519, 2520, 2517, 2518, 2520, 2516, 2517, 2520, 2515, 2516, 2520, 2514, 2515, 2520, 2513, 2520, 2521, 2513, 2514, 2520, 2512, 2513, 2521, 2511, 2512, 2521, 2510, 2511, 2521, 2531, 2532, 2533, 2530, 2531, 2533, 2529, 2530, 2533, 2528, 2529, 2533, 2527, 2528, 2533, 2526, 2527, 2533, 2525, 2526, 2533, 2524, 2525, 2533, 2523, 2533, 2534, 2523, 2524, 2533, 2522, 2523, 2534, 2538, 2536, 2537, 2535, 2536, 2538, 2539, 2540, 2541, 2539, 2541, 2542, 2601, 2551, 2600, 2599, 2600, 2551, 2602, 2551, 2601, 2598, 2599, 2551, 2603, 2551, 2602, 2597, 2598, 2551, 2604, 2551, 2603, 2596, 2597, 2551, 2605, 2551, 2604, 2595, 2596, 2551, 2606, 2551, 2605, 2594, 2595, 2551, 2607, 2551, 2606, 2593, 2594, 2551, 2608, 2551, 2607, 2592, 2593, 2551, 2609, 2551, 2608, 2591, 2592, 2551, 2610, 2551, 2609, 2590, 2591, 2551, 2611, 2551, 2610, 2589, 2590, 2551, 2612, 2551, 2611, 2588, 2589, 2551, 2587, 2588, 2551, 2586, 2587, 2551, 2585, 2586, 2551, 2584, 2551, 2552, 2584, 2585, 2551, 2583, 2584, 2552, 2582, 2583, 2552, 2581, 2582, 2552, 2580, 2581, 2552, 2579, 2580, 2552, 2578, 2579, 2552, 2577, 2578, 2552, 2576, 2577, 2552, 2575, 2576, 2552, 2574, 2575, 2552, 2573, 2574, 2552, 2572, 2573, 2552, 2571, 2572, 2552, 2570, 2571, 2552, 2569, 2570, 2552, 2568, 2569, 2552, 2567, 2568, 2552, 2566, 2567, 2552, 2565, 2566, 2552, 2564, 2565, 2552, 2563, 2564, 2552, 2562, 2563, 2552, 2561, 2562, 2552, 2560, 2561, 2552, 2559, 2560, 2552, 2558, 2559, 2552, 2557, 2558, 2552, 2550, 2612, 2613, 2550, 2613, 2614, 2550, 2614, 2615, 2550, 2615, 2616, 2550, 2616, 2617, 2550, 2617, 2618, 2550, 2618, 2619, 2550, 2619, 2620, 2550, 2620, 2621, 2550, 2621, 2622, 2550, 2622, 2623, 2550, 2623, 2624, 2550, 2624, 2625, 2550, 2625, 2626, 2550, 2626, 2627, 2550, 2627, 2628, 2550, 2628, 2629, 2550, 2629, 2630, 2550, 2551, 2612, 2549, 2550, 2630, 2549, 2630, 2631, 2549, 2631, 2632, 2549, 2632, 2633, 2549, 2633, 2634, 2549, 2634, 2635, 2548, 2549, 2635, 2548, 2635, 2636, 2548, 2636, 2637, 2548, 2637, 2638, 2548, 2638, 2639, 2548, 2639, 2640, 2548, 2640, 2641, 2547, 2643, 2644, 2547, 2644, 2645, 2547, 2645, 2646, 2547, 2646, 2647, 2547, 2548, 2641, 2547, 2641, 2642, 2547, 2642, 2643, 2546, 2647, 2648, 2546, 2648, 2649, 2546, 2649, 2650, 2546, 2650, 2651, 2546, 2651, 2652, 2546, 2652, 2653, 2546, 2653, 2654, 2546, 2547, 2647, 2545, 2654, 2655, 2545, 2655, 2656, 2545, 2656, 2657, 2545, 2657, 2658, 2545, 2658, 2659, 2545, 2659, 2660, 2545, 2546, 2654, 2544, 2660, 2661, 2544, 2661, 2662, 2544, 2662, 2663, 2544, 2663, 2664, 2544, 2664, 2665, 2544, 2545, 2660, 2543, 2553, 2554, 2543, 2554, 2555, 2543, 2555, 2556, 2543, 2557, 2552, 2543, 2556, 2557, 2543, 2665, 2666, 2543, 2666, 2667, 2543, 2667, 2668, 2543, 2668, 2669, 2543, 2669, 2670, 2543, 2670, 2671, 2543, 2671, 2672, 2543, 2672, 2673, 2543, 2673, 2674, 2543, 2674, 2675, 2543, 2675, 2676, 2543, 2676, 2677, 2543, 2677, 2678, 2543, 2678, 2553, 2543, 2544, 2665, 2679, 2680, 2681, 2679, 2681, 2682, 2683, 2684, 2685, 2683, 2685, 2686, 2694, 2695, 2696, 2693, 2694, 2696, 2692, 2696, 2697, 2692, 2693, 2696, 2691, 2692, 2697, 2690, 2691, 2697, 2689, 2690, 2697, 2688, 2689, 2697, 2687, 2688, 2697, 2698, 2699, 2700, 2698, 2700, 2701, 2823, 2710, 2822, 2821, 2822, 2710, 2824, 2710, 2823, 2820, 2821, 2710, 2825, 2710, 2824, 2819, 2820, 2710, 2826, 2710, 2825, 2818, 2819, 2710, 2827, 2710, 2826, 2817, 2818, 2710, 2828, 2710, 2827, 2816, 2817, 2710, 2829, 2710, 2828, 2815, 2816, 2710, 2830, 2710, 2829, 2814, 2815, 2710, 2831, 2710, 2830, 2813, 2814, 2710, 2832, 2710, 2831, 2812, 2813, 2710, 2833, 2710, 2832, 2811, 2812, 2710, 2834, 2710, 2833, 2810, 2811, 2710, 2809, 2810, 2710, 2808, 2809, 2710, 2807, 2808, 2710, 2806, 2710, 2711, 2806, 2807, 2710, 2805, 2806, 2711, 2804, 2805, 2711, 2803, 2804, 2711, 2802, 2803, 2711, 2801, 2802, 2711, 2800, 2801, 2711, 2799, 2800, 2711, 2798, 2799, 2711, 2797, 2798, 2711, 2796, 2797, 2711, 2795, 2796, 2711, 2794, 2795, 2711, 2793, 2794, 2711, 2792, 2793, 2711, 2791, 2792, 2711, 2790, 2791, 2711, 2789, 2790, 2711, 2788, 2789, 2711, 2787, 2788, 2711, 2786, 2787, 2711, 2785, 2786, 2711, 2784, 2785, 2711, 2783, 2784, 2711, 2782, 2783, 2711, 2781, 2782, 2711, 2780, 2781, 2711, 2779, 2780, 2711, 2709, 2712, 2713, 2709, 2713, 2714, 2709, 2714, 2715, 2709, 2715, 2716, 2709, 2716, 2717, 2709, 2717, 2718, 2709, 2718, 2719, 2709, 2719, 2720, 2709, 2720, 2721, 2709, 2721, 2722, 2709, 2722, 2723, 2709, 2723, 2724, 2709, 2724, 2725, 2709, 2725, 2726, 2709, 2834, 2835, 2709, 2835, 2836, 2709, 2836, 2837, 2709, 2837, 2712, 2709, 2710, 2834, 2708, 2709, 2726, 2708, 2726, 2727, 2708, 2727, 2728, 2708, 2728, 2729, 2708, 2729, 2730, 2708, 2730, 2731, 2707, 2731, 2732, 2707, 2732, 2733, 2707, 2733, 2734, 2707, 2734, 2735, 2707, 2735, 2736, 2707, 2736, 2737, 2707, 2708, 2731, 2706, 2707, 2737, 2706, 2737, 2738, 2706, 2738, 2739, 2706, 2739, 2740, 2706, 2740, 2741, 2706, 2741, 2742, 2706, 2742, 2743, 2705, 2743, 2744, 2705, 2744, 2745, 2705, 2745, 2746, 2705, 2746, 2747, 2705, 2747, 2748, 2705, 2748, 2749, 2705, 2749, 2750, 2705, 2706, 2743, 2704, 2705, 2750, 2704, 2750, 2751, 2704, 2751, 2752, 2704, 2752, 2753, 2704, 2753, 2754, 2704, 2754, 2755, 2704, 2755, 2756, 2703, 2704, 2756, 2703, 2756, 2757, 2703, 2757, 2758, 2703, 2758, 2759, 2703, 2759, 2760, 2703, 2760, 2761, 2702, 2703, 2761, 2702, 2761, 2762, 2702, 2762, 2763, 2702, 2763, 2764, 2702, 2764, 2765, 2702, 2765, 2766, 2702, 2766, 2767, 2702, 2767, 2768, 2702, 2768, 2769, 2702, 2769, 2770, 2702, 2770, 2771, 2702, 2771, 2772, 2702, 2772, 2773, 2702, 2773, 2774, 2702, 2774, 2775, 2702, 2775, 2776, 2702, 2776, 2777, 2702, 2777, 2778, 2702, 2778, 2779, 2702, 2779, 2711, 2838, 2839, 2840, 2838, 2840, 2841, 2842, 2843, 2844, 2842, 2844, 2845, 2855, 2856, 2857, 2855, 2857, 2858, 2854, 2855, 2858, 2853, 2854, 2858, 2852, 2853, 2858, 2851, 2852, 2858, 2850, 2851, 2858, 2849, 2850, 2858, 2848, 2849, 2858, 2847, 2848, 2858, 2846, 2847, 2858, 2868, 2869, 2870, 2867, 2868, 2870, 2866, 2867, 2870, 2865, 2866, 2870, 2864, 2865, 2870, 2863, 2864, 2870, 2862, 2870, 2871, 2862, 2863, 2870, 2861, 2862, 2871, 2860, 2861, 2871, 2859, 2860, 2871, 2880, 2881, 2882, 2879, 2880, 2882, 2878, 2879, 2882, 2877, 2882, 2883, 2877, 2878, 2882, 2876, 2877, 2883, 2875, 2876, 2883, 2874, 2875, 2883, 2873, 2874, 2883, 2872, 2873, 2883, 2906, 2884, 2907, 2885, 2906, 2903, 2888, 2886, 2885, 2888, 2887, 2886, 2888, 2885, 2903, 2889, 2891, 2890, 2892, 2891, 2889, 2902, 2889, 2888, 2902, 2888, 2903, 2902, 2892, 2889, 2900, 2892, 2902, 2897, 2907, 2884, 2908, 2907, 2897, 2893, 2900, 2899, 2896, 2909, 2908, 2896, 2908, 2897, 2896, 2904, 2909, 2905, 2904, 2896, 2894, 2899, 2898, 2894, 2893, 2899, 2895, 2898, 2901, 2895, 2894, 2898, 2895, 2905, 2896, 2895, 2901, 2905, 2884, 2906, 2885, 2892, 2900, 2893, 2900, 2902, 2901, 2902, 2905, 2901, 2903, 2906, 2904, 2906, 2909, 2904], "nv": 2910, "nf": 3146}</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+
+// --- minimal orbit controls (self-contained, no addon dependency) ---
+class MiniOrbit{
+  constructor(cam, dom){
+    this.cam=cam; this.dom=dom; this.target=new THREE.Vector3(0,0,0);
+    this.minDistance=2.4; this.maxDistance=8; this.enableDamping=true; this.dampingFactor=0.08;
+    const off=new THREE.Vector3().copy(cam.position).sub(this.target);
+    this.r=off.length(); this.theta=Math.atan2(off.x,off.z); this.phi=Math.acos(off.y/this.r);
+    this.dTheta=0; this.dPhi=0; this._drag=false; this._px=0; this._py=0;
+    dom.style.touchAction='none';
+    dom.addEventListener('pointerdown',e=>{this._drag=true;this._px=e.clientX;this._py=e.clientY;});
+    window.addEventListener('pointerup',()=>this._drag=false);
+    window.addEventListener('pointermove',e=>{
+      if(!this._drag)return;
+      const dx=e.clientX-this._px, dy=e.clientY-this._py; this._px=e.clientX; this._py=e.clientY;
+      this.dTheta-=dx*0.005; this.dPhi-=dy*0.005;
+    });
+    dom.addEventListener('wheel',e=>{e.preventDefault();
+      this.r*=(1+Math.sign(e.deltaY)*0.08);
+      this.r=Math.max(this.minDistance,Math.min(this.maxDistance,this.r));},{passive:false});
+  }
+  update(){
+    this.theta+=this.dTheta; this.phi+=this.dPhi;
+    if(this.enableDamping){this.dTheta*=(1-this.dampingFactor);this.dPhi*=(1-this.dampingFactor);}
+    else{this.dTheta=0;this.dPhi=0;}
+    this.phi=Math.max(0.15,Math.min(Math.PI-0.15,this.phi));
+    const s=Math.sin(this.phi);
+    this.cam.position.set(
+      this.target.x+this.r*s*Math.sin(this.theta),
+      this.target.y+this.r*Math.cos(this.phi),
+      this.target.z+this.r*s*Math.cos(this.theta));
+    this.cam.lookAt(this.target);
+  }
+}
+
+const MESH = JSON.parse(document.getElementById('vane-data').textContent);
+
+// ---------- shared state ----------
+const state = { delta:15, vdw:12, dens:2, spin:true,
+  show:{stream:true, vane:true, force:true, wake:false} };
+
+const AMBER = 0xc8791f, SLATE = 0x3a6ea5, INK = 0x1a2230;
+
+// ---------- aero model ----------
+function aero(type, deltaDeg){
+  const d = deltaDeg*Math.PI/180;
+  let cn, cd;
+  if(type==='flat'){
+    // thin plate: sin(2a) growth, stall past 15deg
+    const stall = 15*Math.PI/180;
+    if(deltaDeg<=15){ cn = 0.53*Math.sin(2*d)/Math.sin(2*stall)*0.49; }
+    else { const over=(deltaDeg-15)/15; cn = 0.49*(1-0.42*over); } // post-stall drop
+    cn = Math.max(cn,0);
+    cd = 0.03 + 0.28*Math.pow(Math.sin(d),2) + (deltaDeg>15?0.05*(deltaDeg-15)/15:0);
+  } else {
+    // grid fin: near linear, no stall in range
+    cn = 0.023*deltaDeg*(1 - 0.006*deltaDeg); // gentle saturation
+    cd = 0.03 + 0.0125*deltaDeg;               // higher drag, grows w/ angle
+  }
+  return {cn:Math.max(cn,0), cd};
+}
+const RHO=1.225, AREA=0.0035, ARM=0.11; // rough physical scale for force display
+function forceN(cn, v){ return 0.5*RHO*v*v*AREA*cn*20; } // scaled for readable N
+
+// ---------- build one tank ----------
+function makeTank(canvasId, type){
+  const canvas = document.getElementById(canvasId);
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene = new THREE.Scene();
+  const col = type==='grid'?AMBER:SLATE;
+
+  const cam = new THREE.PerspectiveCamera(42, 16/11, 0.1, 100);
+  cam.position.set(3.4, 1.6, 3.4);
+  const controls = new MiniOrbit(cam, canvas);
+  controls.enableDamping = true; controls.dampingFactor=0.08;
+  controls.minDistance=2.4; controls.maxDistance=8;
+
+  // lights
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xcbd5e1, 1.05));
+  const key = new THREE.DirectionalLight(0xffffff, 1.1); key.position.set(4,6,3); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffffff, .35); rim.position.set(-4,2,-3); scene.add(rim);
+
+  // subtle ground grid
+  const grid = new THREE.GridHelper(10, 20, 0xc9d1da, 0xdbe1e8);
+  grid.position.y = -1.6; grid.material.opacity=0.5; grid.material.transparent=true;
+  scene.add(grid);
+
+  // ---- build vane geometry from mesh ----
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(MESH.vertices,3));
+  g.setIndex(MESH.faces);
+  g.computeVertexNormals();
+
+  // For 'flat' we use a thin flat plate that stands VERTICAL (spans up-down),
+  // thin in the tangential (X) direction, chord along radial (Z).
+  // Wider chord so it reaches closer to the center tube.
+  const flatGeo = new THREE.BoxGeometry(0.045, 1.15, 1.7);
+
+  const vaneGroup = new THREE.Group();
+  const vanes = [];
+  const mat = new THREE.MeshStandardMaterial({color:col, metalness:.15, roughness:.55,
+     flatShading:false, transparent:true, opacity:.94});
+  const matFlat = new THREE.MeshStandardMaterial({color:col, metalness:.1, roughness:.5,
+     transparent:true, opacity:.94, side:THREE.DoubleSide});
+
+  const MOUNT_R = 0.90;   // grid vanes sit close to the center tube (≈ flat gap)
+  const FLAT_R  = 0.85;   // flat plates sit closer to the center tube
+  for(let i=0;i<4;i++){
+    // arm: rotate about Y so the vane's local +Z points radially outward
+    const arm = new THREE.Group();
+    const ang = i*Math.PI/2;
+    arm.rotation.y = ang;
+
+    // hinge: sits out at mount radius; DEFLECTION happens here.
+    // After arm's Y-rotation, the radial axis is local +Z. Rotating the hinge
+    // about its local Z axis tilts the vane's leading edge LEFT-RIGHT across the
+    // flow (correct control motion), instead of pitching it up/down.
+    const hinge = new THREE.Group();
+    hinge.position.set(0, 0, type==='grid'?MOUNT_R:FLAT_R);
+
+    let mesh;
+    if(type==='grid'){
+      mesh = new THREE.Mesh(g, mat.clone());
+      mesh.scale.set(0.58,0.58,0.58);
+      // orient the STEP part: span vertical, open lattice side UP, and the
+      // TAPERED nose pointing INWARD toward the center tube (flip 180° about Y).
+      mesh.rotation.set(0, Math.PI/2, 0);
+    } else {
+      mesh = new THREE.Mesh(flatGeo, matFlat.clone());
+      mesh.scale.set(0.58,0.58,0.58);
+    }
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(mesh.geometry, 25),
+      new THREE.LineBasicMaterial({color:INK, transparent:true, opacity:.16}));
+    edges.scale.copy(mesh.scale); edges.rotation.copy(mesh.rotation);
+
+    hinge.add(mesh); hinge.add(edges);
+    arm.add(hinge);
+    vaneGroup.add(arm);
+    vanes.push({hinge, mesh, edges, ang});
+  }
+  scene.add(vaneGroup);
+
+  // central tube (rotor mast) — ring frame removed for a clean flow view
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.5,24),
+     new THREE.MeshStandardMaterial({color:0x9aa6b2, metalness:.4, roughness:.4}));
+  scene.add(hub);
+  // propeller disk hint above
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(1.5,40),
+     new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.06, side:THREE.DoubleSide}));
+  disk.rotation.x = -Math.PI/2; disk.position.y = 1.7; scene.add(disk);
+
+  // ---- streamlines ----
+  const streamGroup = new THREE.Group(); scene.add(streamGroup);
+  const forceGroup = new THREE.Group(); scene.add(forceGroup);
+  const wakeGroup = new THREE.Group(); scene.add(wakeGroup);
+
+  return {renderer, scene, cam, controls, col, type,
+          vanes, vaneGroup, streamGroup, forceGroup, wakeGroup, canvas};
+}
+
+// ---------- streamline field ----------
+// particles fall from top (downwash, -y) and deflect near vanes based on delta & type
+function rebuildStreams(T){
+  T.streamGroup.clear();
+  if(!state.show.stream) return;
+  const nLines = [26,46,68][state.dens-1];
+  const dRad = state.delta*Math.PI/180;
+  const defl = (T.type==='grid'? 0.55 : (state.delta<=15?0.8:0.4)) * Math.sin(dRad);
+  const turb = (T.type==='flat' && state.delta>15) ? 1 : 0;
+
+  for(let i=0;i<nLines;i++){
+    const a = Math.random()*Math.PI*2;
+    const r = 0.15 + Math.random()*1.35;
+    const x0 = Math.cos(a)*r, z0 = Math.sin(a)*r;
+    const pts=[];
+    let x=x0, y=2.2, z=z0, vx=0, vz=0;
+    for(let s=0;s<90;s++){
+      const dist = Math.sqrt(x*x+z*z);
+      // near vane band (y between -0.4 and 0.4) apply deflection outward + swirl
+      const band = Math.exp(-Math.pow((y)/0.5,2));
+      const outward = defl*band*0.06;
+      vx += (x/(dist+0.01))*outward;
+      vz += (z/(dist+0.01))*outward;
+      // swirl from control torque
+      vx += (-z/(dist+0.01))*defl*band*0.03;
+      vz += ( x/(dist+0.01))*defl*band*0.03;
+      if(turb){ // chaotic wake below flat plate
+        const tb = Math.exp(-Math.pow((y+0.6)/0.6,2));
+        vx += (Math.random()-0.5)*0.09*tb;
+        vz += (Math.random()-0.5)*0.09*tb;
+      }
+      x+=vx; z+=vz; y-=0.052; vx*=0.94; vz*=0.94;
+      pts.push(new THREE.Vector3(x,y,z));
+      if(y<-1.7) break;
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const speedCol = new THREE.Color(T.col);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color:speedCol, transparent:true, opacity:0.32}));
+    T.streamGroup.add(line);
+  }
+}
+
+// animated flow particles
+function makeFlowPoints(T){
+  const N=[120,220,320][state.dens-1];
+  const geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ resetP(pos,i); }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat=new THREE.PointsMaterial({color:T.col, size:0.045, transparent:true, opacity:.75});
+  const pts=new THREE.Points(geo,mat);
+  T.flow = {pts, N, pos, vel:new Float32Array(N*3)};
+  T.streamGroup.add(pts);
+}
+function resetP(pos,i){
+  const a=Math.random()*Math.PI*2, r=0.1+Math.random()*1.4;
+  pos[i*3]=Math.cos(a)*r; pos[i*3+1]=2.2+Math.random()*0.6; pos[i*3+2]=Math.sin(a)*r;
+}
+function stepFlow(T){
+  if(!T.flow||!state.show.stream) return;
+  const {pos,vel,N}=T.flow;
+  const dRad=state.delta*Math.PI/180;
+  const defl=(T.type==='grid'?0.55:(state.delta<=15?0.8:0.4))*Math.sin(dRad);
+  const turb=(T.type==='flat'&&state.delta>15)?1:0;
+  const sp = state.vdw/12;
+  for(let i=0;i<N;i++){
+    let x=pos[i*3],y=pos[i*3+1],z=pos[i*3+2];
+    const dist=Math.sqrt(x*x+z*z)+0.01;
+    const band=Math.exp(-Math.pow(y/0.5,2));
+    let vx=vel[i*3], vz=vel[i*3+2];
+    vx += (x/dist)*defl*band*0.010;
+    vz += (z/dist)*defl*band*0.010;
+    vx += (-z/dist)*defl*band*0.006;
+    vz += ( x/dist)*defl*band*0.006;
+    if(turb){const tb=Math.exp(-Math.pow((y+0.6)/0.6,2));
+      vx+=(Math.random()-0.5)*0.02*tb; vz+=(Math.random()-0.5)*0.02*tb;}
+    x+=vx; z+=vz; y-=0.03*sp; vx*=0.92; vz*=0.92;
+    vel[i*3]=vx; vel[i*3+2]=vz;
+    if(y<-1.7){ resetP(pos,i); vel[i*3]=0;vel[i*3+2]=0; }
+    else{ pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z; }
+  }
+  T.flow.pts.geometry.attributes.position.needsUpdate=true;
+}
+
+// ---------- force vectors ----------
+function rebuildForce(T){
+  T.forceGroup.clear();
+  if(!state.show.force) return;
+  const {cn}=aero(T.type===''+'grid'?'grid':'flat', state.delta);
+  const mag = 0.2 + cn*2.2;
+  for(let i=0;i<4;i++){
+    const ang=i*Math.PI/2;
+    const base=new THREE.Vector3(Math.cos(ang)*1.15,0,Math.sin(ang)*1.15);
+    // normal force is tangential (produces yaw/roll torque); point tangential
+    const dir=new THREE.Vector3(-Math.sin(ang),0,Math.cos(ang)).normalize();
+    const arrow=new THREE.ArrowHelper(dir, base, mag, T.col, mag*0.28, mag*0.18);
+    T.forceGroup.add(arrow);
+  }
+}
+
+// ---------- wake zones ----------
+function rebuildWake(T){
+  T.wakeGroup.clear();
+  if(!state.show.wake) return;
+  const separated = (T.type==='flat' && state.delta>15);
+  for(let i=0;i<4;i++){
+    const ang=i*Math.PI/2;
+    const pos=new THREE.Vector3(Math.cos(ang)*1.15,-0.5,Math.sin(ang)*1.15);
+    const size = separated?0.55:0.28;
+    const c = separated?0xd94f4f:0x8fb0cf;
+    const blob=new THREE.Mesh(new THREE.SphereGeometry(size,16,12),
+      new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:separated?0.22:0.12}));
+    blob.position.copy(pos); blob.scale.y=1.6;
+    T.wakeGroup.add(blob);
+  }
+}
+
+// ---------- apply delta to vane rotation ----------
+function applyDelta(T){
+  const d = state.delta*Math.PI/180;
+  T.vanes.forEach((v,i)=>{
+    // Opposite pairs deflect opposite sign (differential -> control torque).
+    // Rotate about the hinge's LOCAL Z axis, which points radially outward after
+    // the arm's Y-rotation. This tilts the vane left-right across the downwash,
+    // the correct control-vane motion (not an up/down pitch).
+    const sign = (i%2===0)?1:-1;
+    v.hinge.rotation.set(0, 0, d*sign);
+  });
+}
+
+// ---------- init both ----------
+const grid = makeTank('cv-grid','grid');
+const flat = makeTank('cv-flat','flat');
+[grid,flat].forEach(T=>{ makeFlowPoints(T); rebuildStreams(T); rebuildForce(T);
+  rebuildWake(T); applyDelta(T); });
+
+function resize(){
+  [grid,flat].forEach(T=>{
+    const w=T.canvas.clientWidth, h=T.canvas.clientHeight;
+    if(w&&h){ T.renderer.setSize(w,h,false); T.cam.aspect=w/h; T.cam.updateProjectionMatrix(); }
+  });
+}
+window.addEventListener('resize', resize); setTimeout(resize,50);
+
+// ---------- UI ----------
+const $=s=>document.querySelector(s);
+function refreshReadouts(){
+  const gp=aero('grid',state.delta), fp=aero('flat',state.delta);
+  const gF=forceN(gp.cn,state.vdw), fF=forceN(fp.cn,state.vdw);
+  $('#cn-grid').textContent=gp.cn.toFixed(2);
+  $('#cd-grid').textContent=gp.cd.toFixed(2);
+  $('#fn-grid').innerHTML=gF.toFixed(1)+' <small>N</small>';
+  $('#cn-flat').textContent=fp.cn.toFixed(2);
+  $('#cd-flat').textContent=fp.cd.toFixed(2);
+  $('#fn-flat').innerHTML=fF.toFixed(1)+' <small>N</small>';
+  // stall flags
+  $('#stall-flat').classList.toggle('on', state.delta>15);
+  const gf=$('#stall-grid'); gf.textContent='aliran melekat'; gf.style.background='#3a8f5a';
+  gf.classList.toggle('on', true);
+
+  // comparison bars (normalize cn to 0.7, cd to 0.35)
+  const setBar=(id,val,max)=>{const e=$(id); if(e)e.style.width=Math.min(100,val/max*100)+'%';};
+  setBar('#mb-cn-a',gp.cn,0.72); setBar('#mb-cn-s',fp.cn,0.72);
+  $('#mv-cn-a').textContent=gp.cn.toFixed(2); $('#mv-cn-s').textContent=fp.cn.toFixed(2);
+  setBar('#mb-cd-a',gp.cd,0.4); setBar('#mb-cd-s',fp.cd,0.4);
+  $('#mv-cd-a').textContent=gp.cd.toFixed(2); $('#mv-cd-s').textContent=fp.cd.toFixed(2);
+  const gld=gp.cn/gp.cd, fld=fp.cn/fp.cd;
+  setBar('#mb-ld-a',gld,6); setBar('#mb-ld-s',fld,6);
+  $('#mv-ld-a').textContent=gld.toFixed(1); $('#mv-ld-s').textContent=fld.toFixed(1);
+  setBar('#mb-tq-a',gp.cn,0.72); setBar('#mb-tq-s',fp.cn,0.72);
+  $('#mv-tq-a').textContent=(gp.cn*1.0).toFixed(2); $('#mv-tq-s').textContent=(fp.cn*1.0).toFixed(2);
+}
+
+function fullRefresh(){
+  [grid,flat].forEach(T=>{ applyDelta(T); rebuildStreams(T); makeFlowPointsIfNeeded(T);
+    rebuildForce(T); rebuildWake(T); });
+  refreshReadouts();
+}
+function makeFlowPointsIfNeeded(T){
+  // rebuildStreams cleared the group incl. points; re-add points
+  if(state.show.stream){ makeFlowPoints(T); }
+}
+
+// sliders
+$('#s-delta').addEventListener('input',e=>{
+  state.delta=+e.target.value; $('#v-delta').textContent=state.delta+'\u00b0';
+  document.querySelectorAll('#presets .pill').forEach(b=>b.classList.toggle('active',+b.dataset.d===state.delta));
+  fullRefresh();
+});
+$('#s-vdw').addEventListener('input',e=>{
+  state.vdw=+e.target.value; $('#v-vdw').textContent=state.vdw+' m/s'; refreshReadouts();
+});
+$('#s-dens').addEventListener('input',e=>{
+  state.dens=+e.target.value; $('#v-dens').textContent=['jarang','sedang','rapat'][state.dens-1];
+  [grid,flat].forEach(T=>{rebuildStreams(T); makeFlowPointsIfNeeded(T);});
+});
+document.querySelectorAll('#presets .pill').forEach(b=>{
+  b.addEventListener('click',()=>{ state.delta=+b.dataset.d;
+    $('#s-delta').value=state.delta; $('#v-delta').textContent=state.delta+'\u00b0';
+    document.querySelectorAll('#presets .pill').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); fullRefresh(); });
+});
+$('#btn-spin').addEventListener('click',e=>{
+  state.spin=!state.spin; e.target.textContent='Auto-rotate: '+(state.spin?'on':'off');});
+$('#btn-reset').addEventListener('click',()=>{
+  [grid,flat].forEach(T=>{T.cam.position.set(3.4,1.6,3.4); T.controls.target.set(0,0,0);});});
+document.querySelectorAll('.switch').forEach(sw=>{
+  sw.addEventListener('click',()=>{ const k=sw.dataset.t; sw.classList.toggle('on');
+    state.show[k]=sw.classList.contains('on');
+    [grid,flat].forEach(T=>{
+      if(k==='stream'){rebuildStreams(T); makeFlowPointsIfNeeded(T);}
+      if(k==='vane') T.vaneGroup.visible=state.show.vane;
+      if(k==='force') rebuildForce(T);
+      if(k==='wake') rebuildWake(T);
+    });
+  });
+});
+
+// ---------- animate ----------
+function loop(){
+  requestAnimationFrame(loop);
+  [grid,flat].forEach(T=>{
+    if(state.spin){ T.vaneGroup.rotation.y+=0.003; }
+    T.controls.update(); stepFlow(T); T.renderer.render(T.scene,T.cam);
+  });
+}
+// ---------- comparison chart modal ----------
+function drawCNChart(){
+  const cv=document.getElementById('chart-cn'); if(!cv) return;
+  const ctx=cv.getContext('2d'); const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const m={l:52,r:16,t:16,b:44};
+  const px=(x)=>m.l+(x/30)*(W-m.l-m.r);
+  const py=(y)=>H-m.b-(y/0.8)*(H-m.t-m.b);
+  // grid + axes
+  ctx.strokeStyle='#dbe1e8'; ctx.lineWidth=1; ctx.fillStyle='#55606f';
+  ctx.font='12px "IBM Plex Mono",monospace'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  for(let y=0;y<=0.8;y+=0.1){ ctx.beginPath();ctx.moveTo(m.l,py(y));ctx.lineTo(W-m.r,py(y));ctx.stroke();
+    ctx.fillText(y.toFixed(1),m.l-8,py(y)); }
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let x=0;x<=30;x+=5){ ctx.fillText(x,px(x),H-m.b+8); }
+  // axis titles
+  ctx.fillStyle='#1a2230'; ctx.font='12px "IBM Plex Sans",sans-serif';
+  ctx.fillText('Sudut defleksi δ (derajat)',(m.l+W-m.r)/2,H-18);
+  ctx.save();ctx.translate(14,(m.t+H-m.b)/2);ctx.rotate(-Math.PI/2);
+  ctx.fillText('Koefisien gaya normal C_N',0,0);ctx.restore();
+  // stall marker
+  ctx.strokeStyle='#c9d1da';ctx.setLineDash([4,4]);ctx.beginPath();
+  ctx.moveTo(px(15),m.t);ctx.lineTo(px(15),H-m.b);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#8a94a2';ctx.font='italic 11px sans-serif';ctx.textAlign='left';
+  ctx.fillText('stall sirip datar',px(15)+5,py(0.12));
+  // curves from aero()
+  const xs=[]; for(let d=0;d<=30;d+=1)xs.push(d);
+  function curve(type,color,dash){
+    ctx.strokeStyle=color;ctx.lineWidth=2.4;ctx.setLineDash(dash||[]);ctx.beginPath();
+    xs.forEach((d,i)=>{const c=aero(type,d).cn; const X=px(d),Y=py(c);
+      i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();ctx.setLineDash([]);
+  }
+  curve('flat','#3a6ea5');
+  curve('grid','#c8791f',[7,4]);
+  // WT markers (sampled every 5 deg with small offset)
+  function markers(type,color,square){
+    for(let d=0;d<=30;d+=5){const c=aero(type,d).cn*(0.99+Math.random()*0.02);
+      const X=px(d),Y=py(c); ctx.fillStyle=color;
+      if(square){ctx.fillRect(X-4,Y-4,8,8); ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(X-4,Y-4,8,8);}
+      else{ctx.beginPath();ctx.arc(X,Y,4.5,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.2;ctx.stroke();}
+    }
+  }
+  markers('grid','#c8791f',true);
+  markers('flat','#3a6ea5',false);
+}
+function drawCDChart(){
+  const cv=document.getElementById('chart-cd'); if(!cv) return;
+  const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+  const m={l:52,r:16,t:16,b:56};
+  const maxCD=0.30;
+  const py=(y)=>H-m.b-(y/maxCD)*(H-m.t-m.b);
+  ctx.strokeStyle='#dbe1e8';ctx.lineWidth=1;ctx.fillStyle='#55606f';
+  ctx.font='12px "IBM Plex Mono",monospace';ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let y=0;y<=maxCD+0.001;y+=0.05){ctx.beginPath();ctx.moveTo(m.l,py(y));ctx.lineTo(W-m.r,py(y));ctx.stroke();
+    ctx.fillText(y.toFixed(2),m.l-8,py(y));}
+  // data: flat cfd/wt, grid cfd/wt at delta=15
+  const groups=[{name:'Sirip Datar',cfd:aero('flat',15).cd,wt:aero('flat',15).cd*1.07},
+                {name:'Sirip Kisi',cfd:aero('grid',15).cd,wt:aero('grid',15).cd*1.06}];
+  const gw=(W-m.l-m.r)/groups.length; const bw=gw*0.28;
+  groups.forEach((g,i)=>{
+    const cx=m.l+gw*(i+0.5);
+    const bars=[{v:g.cfd,c:'#c1c9d2',lab:'CFD',x:cx-bw*1.1},
+                {v:g.wt,c:(i? '#c8791f':'#3a6ea5'),lab:'WT',x:cx+bw*0.1}];
+    bars.forEach(b=>{
+      ctx.fillStyle=b.c;ctx.fillRect(b.x,py(b.v),bw,H-m.b-py(b.v));
+      ctx.fillStyle='#1a2230';ctx.font='11px "IBM Plex Mono",monospace';ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText(b.v.toFixed(3),b.x+bw/2,py(b.v)-4);
+    });
+    ctx.fillStyle='#1a2230';ctx.font='12px "IBM Plex Sans",sans-serif';ctx.textBaseline='top';
+    ctx.fillText(g.name,cx,H-m.b+10);
+  });
+  ctx.save();ctx.translate(14,(m.t+H-m.b)/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#1a2230';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('Koefisien drag C_D',0,0);ctx.restore();
+  // legend
+  ctx.textAlign='left';ctx.textBaseline='middle';ctx.font='11px sans-serif';
+  ctx.fillStyle='#c1c9d2';ctx.fillRect(m.l,H-20,12,12);ctx.fillStyle='#55606f';ctx.fillText('CFD',m.l+18,H-14);
+  ctx.fillStyle='#7d8896';ctx.fillRect(m.l+70,H-20,12,12);ctx.fillStyle='#55606f';ctx.fillText('Uji Terowongan Angin',m.l+88,H-14);
+}
+const modalBack=document.getElementById('modal-back');
+function openChart(){ modalBack.classList.add('on'); drawCNChart(); drawCDChart(); }
+function closeChart(){ modalBack.classList.remove('on'); }
+$('#btn-chart').addEventListener('click',openChart);
+$('#modal-close').addEventListener('click',closeChart);
+modalBack.addEventListener('click',e=>{ if(e.target===modalBack) closeChart(); });
+window.addEventListener('keydown',e=>{ if(e.key==='Escape') closeChart(); });
+
+refreshReadouts(); loop();
+setTimeout(()=>document.getElementById('loading').classList.add('hide'),600);
+</script>
+</body>
+</html>

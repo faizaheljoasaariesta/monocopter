@@ -1,0 +1,3008 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monochopter 3D Simulation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  :root {
+    /* Aerospace dark palette (default) */
+    --bg:        #0a0f1a;
+    --panel:     #111824;
+    --panel-2:   #0d141e;
+    --border:    #1e2a3a;
+    --border-lt: #28384c;
+    --accent:    #3dd6f5;   /* technical cyan */
+    --accent2:   #ff9e3d;   /* warning amber  */
+    --green:     #4ade80;
+    --yellow:    #facc15;
+    --red:       #f87171;
+    --magenta:   #c084fc;
+    --text:      #e2e8f0;
+    --text-dim:  #7a8ba3;
+    --text-mut:  #4d5d72;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui:   'Space Grotesk', system-ui, sans-serif;
+    /* token scene 3D (dipakai JS) */
+    --scene-bg:   #0a0f1a;
+    --scene-grid: #2a3850;
+    --scene-grid2:#16202e;
+    --scene-ground:#0d141e;
+    /* token header & overlay (agar light mode menyeluruh) */
+    --topbar1:    #13202e;
+    --topbar2:    #0c1420;
+    --overlay-bg: rgba(13,20,30,.87);
+  }
+  body.light {
+    --bg:        #eef2f7;
+    --panel:     #ffffff;
+    --panel-2:   #f1f5f9;
+    --border:    #d8e0ea;
+    --border-lt: #c2cdda;
+    --accent:    #0891b2;   /* deeper cyan untuk kontras di terang */
+    --accent2:   #ea580c;
+    --green:     #16a34a;
+    --yellow:    #ca8a04;
+    --red:       #dc2626;
+    --magenta:   #9333ea;
+    --text:      #1a2433;
+    --text-dim:  #5a6b80;
+    --text-mut:  #94a3b8;
+    --scene-bg:   #dde6f0;
+    --scene-grid: #aab8cc;
+    --scene-grid2:#c4d0e0;
+    --scene-ground:#d0dae8;
+    --topbar1:    #f8fbfe;
+    --topbar2:    #e9eff6;
+    --overlay-bg: rgba(255,255,255,.88);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-ui);
+    height: 100vh; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+
+  /* ── TOP BAR ── */
+  #topbar { height: 52px; background: linear-gradient(180deg,var(--topbar1),var(--topbar2));
+    border-bottom: 1px solid var(--border); display: flex; align-items: center;
+    padding: 0 18px; gap: 16px; flex-shrink: 0; z-index: 10; min-width: 0; }
+  #topbar .brand { display: flex; align-items: center; gap: 11px; flex-shrink: 0; }
+  #topbar .brand-mark { width: 30px; height: 30px; flex-shrink: 0; }
+  #topbar .logo { font-size: 17px; font-weight: 700; color: var(--text);
+    letter-spacing: 1px; line-height: 1; }
+  #topbar .logo .accent { color: var(--accent); }
+  #topbar .subtitle { font-size: 11px; color: var(--text-dim); letter-spacing: .3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+  .status-pill { padding: 4px 11px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    font-family: var(--font-mono); letter-spacing: .5px; display: inline-flex; align-items: center;
+    gap: 6px; white-space: nowrap; flex-shrink: 0; }
+  .status-pill::before { content:''; width: 7px; height: 7px; border-radius: 50%;
+    background: currentColor; box-shadow: 0 0 7px currentColor; }
+  .pill-green { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+  .pill-blue  { background: rgba(61,214,245,.10); color: var(--accent); border: 1px solid rgba(61,214,245,.28); }
+  .pill-red   { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+  #topbar .spacer { flex: 1 1 auto; min-width: 8px; }
+  #sim-time { font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+    color: var(--accent2); flex-shrink: 0; }
+  #theme-toggle { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-lt);
+    background: var(--panel-2); color: var(--accent); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; }
+  #theme-toggle:hover { border-color: var(--accent); background: rgba(61,214,245,.1); transform: scale(1.05); }
+  #help-btn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-lt);
+    background: var(--panel-2); color: var(--accent2); cursor: pointer; font-size: 17px; font-weight: 700;
+    font-family: var(--font-ui); display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .15s; }
+  #help-btn:hover { border-color: var(--accent2); background: rgba(255,158,61,.1); transform: scale(1.05); }
+
+  /* ── MODAL BANTUAN ── */
+  #help-overlay { position: fixed; inset: 0; background: rgba(5,8,14,.78); backdrop-filter: blur(4px);
+    z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; }
+  #help-overlay.show { display: flex; }
+  #help-modal { background: var(--panel); border: 1px solid var(--border-lt); border-radius: 14px;
+    width: min(860px, 100%); max-height: 88vh; display: flex; flex-direction: column;
+    box-shadow: 0 24px 80px rgba(0,0,0,.5); overflow: hidden; }
+  #help-head { padding: 18px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; background: var(--panel-2); flex-shrink: 0; }
+  #help-head h2 { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: .3px; flex: 1; }
+  #help-head .accent { color: var(--accent); }
+  #help-close { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border-lt);
+    background: transparent; color: var(--text-dim); cursor: pointer; font-size: 17px; flex-shrink: 0; }
+  #help-close:hover { border-color: var(--red); color: var(--red); }
+  #help-tabs { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border);
+    flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+  #help-tabs::-webkit-scrollbar { display: none; }
+  .help-tab { padding: 9px 15px; font-size: 12px; font-weight: 600; letter-spacing: .4px;
+    color: var(--text-dim); cursor: pointer; border: none; background: transparent;
+    border-bottom: 2px solid transparent; white-space: nowrap; flex-shrink: 0; font-family: var(--font-ui); }
+  .help-tab:hover { color: var(--text); }
+  .help-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  #help-body { padding: 22px 26px; overflow-y: auto; font-size: 13.5px; line-height: 1.7; color: var(--text); }
+  .help-page { display: none; } .help-page.active { display: block; }
+  #help-body h3 { font-size: 15px; font-weight: 700; color: var(--accent); margin: 4px 0 10px;
+    letter-spacing: .3px; }
+  #help-body h4 { font-size: 13.5px; font-weight: 700; color: var(--text); margin: 18px 0 7px; }
+  #help-body p { margin-bottom: 11px; color: var(--text-dim); }
+  #help-body ol, #help-body ul { margin: 0 0 12px 20px; color: var(--text-dim); }
+  #help-body li { margin-bottom: 7px; }
+  #help-body b { color: var(--text); font-weight: 600; }
+  #help-body code { font-family: var(--font-mono); font-size: 12px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: var(--accent); }
+  .param-card { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 12px 15px; margin-bottom: 11px; }
+  .param-card .pname { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent);
+    margin-bottom: 3px; }
+  .param-card .prange { font-family: var(--font-mono); font-size: 11px; color: var(--text-mut);
+    margin-bottom: 6px; }
+  .param-card .pdesc { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+  .param-card .peffect { font-size: 12.5px; color: var(--text); margin-top: 6px; }
+  .param-card .peffect b { color: var(--accent2); }
+  .help-warn { background: rgba(255,158,61,.08); border: 1px solid rgba(255,158,61,.3); border-radius: 8px;
+    padding: 11px 14px; margin: 12px 0; font-size: 12.5px; color: var(--text); }
+  .help-warn b { color: var(--accent2); }
+  .help-step { display: flex; gap: 12px; margin-bottom: 13px; }
+  .help-step .num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
+    color: var(--bg); font-weight: 700; font-size: 13px; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; font-family: var(--font-mono); }
+  .help-step .txt { flex: 1; font-size: 13px; color: var(--text-dim); padding-top: 3px; }
+  .help-step .txt b { color: var(--text); }
+
+  /* ── MAIN LAYOUT — fluid, never overflows horizontally ── */
+  #main { flex: 1; display: grid;
+    grid-template-columns: clamp(220px, 19vw, 270px) minmax(0, 1fr) clamp(230px, 21vw, 290px);
+    grid-template-rows: minmax(0,1fr) clamp(150px, 22vh, 210px);
+    gap: 1px; background: var(--border); overflow: hidden; min-height: 0; min-width: 0; }
+
+  .panel { background: var(--panel); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+  .panel-header { padding: 9px 13px; font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text-dim); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; background: var(--panel-2); }
+  .panel-header::before { content: ''; width: 3px; height: 13px; background: var(--accent);
+    border-radius: 2px; box-shadow: 0 0 6px rgba(61,214,245,.5); }
+
+  /* ── 3D CANVAS ── */
+  #canvas-wrap { grid-column: 2; grid-row: 1; position: relative; background: var(--bg); min-width: 0; }
+  #three-canvas { display: block; width: 100%; height: 100%; }
+  #canvas-overlay { position: absolute; top: 12px; left: 13px; font-family: var(--font-mono);
+    font-size: 11px; color: var(--text-dim); pointer-events: none; line-height: 1.9; }
+  #canvas-overlay b { color: var(--accent); font-weight: 600; }
+  #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    pointer-events: none; opacity: 0.25; }
+
+  /* ── LEFT CONTROL PANEL ── */
+  #ctrl-panel { grid-column: 1; grid-row: 1 / 3; }
+  .ctrl-group { padding: 11px 13px; border-bottom: 1px solid var(--border); }
+  .ctrl-label { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--text-dim);
+    text-transform: uppercase; margin-bottom: 9px; }
+  .ctrl-row { display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 9px; gap: 10px; }
+  .ctrl-row:last-child { margin-bottom: 0; }
+  .ctrl-name { font-size: 12px; color: var(--text); min-width: 56px; flex-shrink: 0; }
+  .ctrl-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--accent);
+    min-width: 50px; text-align: right; flex-shrink: 0; }
+  input[type=range] { flex: 1; min-width: 0; -webkit-appearance: none; appearance: none;
+    height: 4px; background: var(--border-lt); border-radius: 3px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px;
+    border-radius: 50%; background: var(--accent); cursor: pointer; box-shadow: 0 0 8px rgba(61,214,245,.6);
+    transition: transform .1s; }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none; border-radius: 50%;
+    background: var(--accent); cursor: pointer; box-shadow: 0 0 8px rgba(61,214,245,.6); }
+
+  .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+  .btn { flex: 1; min-width: 0; padding: 8px 4px; font-family: var(--font-ui); font-size: 11px;
+    font-weight: 600; letter-spacing: .5px; border: 1px solid var(--border-lt); border-radius: 6px;
+    background: var(--panel-2); color: var(--text-dim); cursor: pointer; transition: all .15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(61,214,245,.08); }
+  .btn.active { background: rgba(61,214,245,.15); border-color: var(--accent); color: var(--accent);
+    box-shadow: inset 0 0 12px rgba(61,214,245,.1); }
+  .btn.danger { border-color: rgba(248,113,113,.4); color: var(--red); }
+  .btn.danger:hover { background: rgba(248,113,113,.1); border-color: var(--red); }
+
+  /* ── RIGHT TELEMETRY PANEL ── */
+  #telem-panel { grid-column: 3; grid-row: 1; overflow-y: auto; }
+  #wp-map-wrap { padding: 10px 12px 12px; }
+  #wp-map-canvas { width: 100%; display: block; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 7px; }
+  .telem-grid { padding: 11px 13px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .telem-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 9px; min-width: 0; }
+  .telem-card-full { grid-column: 1 / 3; }
+  .telem-title { font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px; }
+  .telem-value { font-family: var(--font-mono); font-size: 19px; font-weight: 700; color: var(--accent);
+    line-height: 1; overflow: hidden; text-overflow: ellipsis; }
+  .telem-unit { font-size: 9px; color: var(--text-mut); margin-top: 3px; }
+  .telem-bar-wrap { height: 3px; background: var(--border-lt); border-radius: 2px; margin-top: 7px; overflow: hidden; }
+  .telem-bar { height: 100%; border-radius: 2px; transition: width .12s; }
+
+  .pid-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; padding: 0 13px; }
+  .pid-name { font-size: 11px; color: var(--text-dim); width: 42px; flex-shrink: 0; }
+  .pid-bar-wrap { flex: 1; min-width: 0; height: 6px; background: var(--border-lt); border-radius: 3px;
+    overflow: hidden; position: relative; }
+  .pid-center { position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: var(--text-mut); }
+  .pid-fill { position: absolute; top: 0; height: 100%; border-radius: 3px; transition: all .1s; }
+  .pid-numval { font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--text);
+    width: 46px; text-align: right; flex-shrink: 0; }
+
+  #servo-viz { padding: 11px 13px 4px; display: flex; justify-content: center; }
+
+  /* ── BOTTOM CHART STRIP ── */
+  #chart-strip { grid-column: 2 / 4; grid-row: 2; display: flex; flex-direction: column; min-width: 0; }
+  #chart-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    overflow-x: auto; scrollbar-width: none; }
+  #chart-tabs::-webkit-scrollbar { display: none; }
+  .chart-tab { padding: 8px 15px; font-size: 11px; font-weight: 600; letter-spacing: .5px;
+    color: var(--text-dim); cursor: pointer; border: none; border-right: 1px solid var(--border);
+    transition: all .15s; text-transform: uppercase; background: transparent; white-space: nowrap; flex-shrink: 0; }
+  .chart-tab:hover { color: var(--text); background: rgba(255,255,255,.03); }
+  .chart-tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); background: rgba(61,214,245,.07); }
+  #chart-canvas-wrap { flex: 1; position: relative; min-height: 0; min-width: 0; }
+  #chart-canvas { display: block; }
+
+  /* ── OVERLAYS ── */
+  #target-info { position: absolute; bottom: 12px; right: 13px; background: var(--overlay-bg);
+    border: 1px solid var(--border-lt); border-radius: 7px; padding: 9px 13px; font-family: var(--font-mono);
+    font-size: 11px; color: var(--text-dim); pointer-events: none; line-height: 1.9; backdrop-filter: blur(4px); }
+  #target-info span { color: var(--accent); font-weight: 600; }
+  #mode-badge { position: absolute; top: 12px; right: 13px; background: var(--overlay-bg);
+    border: 1px solid rgba(74,222,128,.4); border-radius: 6px; padding: 5px 11px; font-size: 11px;
+    font-weight: 700; letter-spacing: 1.5px; color: var(--green); pointer-events: none; font-family: var(--font-mono); }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--panel-2); }
+  ::-webkit-scrollbar-thumb { background: var(--border-lt); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-mut); }
+
+  /* ── LEFT TABS ── */
+  #left-tabs { display:flex; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .ltab { flex:1; padding:9px 4px; font-size:10px; font-weight:700; letter-spacing:1px;
+    text-transform:uppercase; color:var(--text-dim); background:transparent; border:none; cursor:pointer;
+    transition:all .15s; border-bottom:2px solid transparent; font-family:var(--font-ui); }
+  .ltab:hover { color:var(--text); background:rgba(255,255,255,.03); }
+  .ltab.active { color:var(--accent); border-bottom:2px solid var(--accent); background:rgba(61,214,245,.06); }
+  .left-page { display:none; flex-direction:column; flex:1; overflow-y:auto; overflow-x:hidden; min-height:0; }
+  .left-page.active { display:flex; }
+
+  #wp-list { padding:8px 11px; flex-shrink:0; }
+  .wp-item { display:flex; align-items:center; gap:7px; padding:6px 8px; margin-bottom:5px;
+    border-radius:6px; border:1px solid var(--border); background:var(--panel-2);
+    font-size:11px; font-family:var(--font-mono); cursor:pointer; transition:all .15s; }
+  .wp-item:hover { border-color:var(--accent); background:rgba(61,214,245,.07); }
+  .wp-item.active-wp { border-color:var(--accent); background:rgba(61,214,245,.13); box-shadow:0 0 10px rgba(61,214,245,.12); }
+  .wp-item.reached { border-color:var(--green); background:rgba(74,222,128,.08); }
+  .wp-dot { width:11px; height:11px; border-radius:50%; border:2px solid; flex-shrink:0; }
+  .wp-coords { flex:1; min-width:0; color:var(--text-dim); font-size:10px; line-height:1.6; overflow:hidden; }
+  .wp-coords b { color:var(--text); }
+  .wp-del { background:none; border:none; color:var(--red); cursor:pointer; font-size:15px; padding:0 3px;
+    opacity:0.5; flex-shrink:0; }
+  .wp-del:hover { opacity:1; }
+
+  #wp-editor { padding:9px 11px; border-top:1px solid var(--border); flex-shrink:0; }
+  .wp-input-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .wp-input-row label { font-size:10px; color:var(--text-dim); width:18px; text-align:center;
+    font-family:var(--font-mono); font-weight:700; flex-shrink:0; }
+  .wp-input-row input[type=number] { flex:1; min-width:0; background:var(--panel-2); border:1px solid var(--border-lt);
+    border-radius:5px; padding:5px 7px; font-family:var(--font-mono); font-size:11px; color:var(--text); outline:none; }
+  .wp-input-row input[type=number]:focus { border-color:var(--accent); }
+
+  #guidance-overlay { position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    background:var(--overlay-bg); border:1px solid var(--border-lt); border-left:3px solid var(--magenta);
+    border-radius:7px; padding:7px 18px; pointer-events:none; font-family:var(--font-mono); font-size:11px;
+    text-align:center; line-height:1.9; display:none; white-space:nowrap; backdrop-filter:blur(4px); }
+  #guidance-overlay .gmode { font-size:12px; font-weight:700; color:var(--magenta); letter-spacing:1.5px; }
+  #guidance-overlay b { color:var(--accent); }
+
+  #wp-data-box { position:absolute; bottom:12px; left:13px; background:var(--overlay-bg);
+    border:1px solid var(--border-lt); border-radius:7px; padding:9px 13px; pointer-events:none;
+    font-family:var(--font-mono); font-size:10px; line-height:1.9; display:none; min-width:180px; backdrop-filter:blur(4px); }
+  #wp-data-box .wdb-title { font-size:9px; font-weight:700; letter-spacing:1.2px; color:var(--text-dim);
+    text-transform:uppercase; margin-bottom:5px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+  #wp-data-box .wdb-row { display:flex; justify-content:space-between; gap:14px; }
+  #wp-data-box .wdb-label { color:var(--text-dim); }
+  #wp-data-box .wdb-val { color:var(--text); font-weight:600; }
+  #wp-data-box .wdb-val.ok { color:var(--green); }
+  #wp-data-box .wdb-val.warn { color:var(--accent2); }
+  #wp-data-box .wdb-val.crit { color:var(--red); }
+
+  #wp-progress-bar { position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--border); display:none; }
+  #wp-progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--green)); transition:width .25s; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 2 L21 12 L21 24 L11 24 L11 12 Z" fill="#7a828e" style="stroke:var(--accent)" stroke-width="1.2"/>
+      <path d="M11 20 L5 26 L5 29 L11 25 Z" fill="#a8b2be" style="stroke:var(--accent)" stroke-width="1"/>
+      <path d="M21 20 L27 26 L27 29 L21 25 Z" fill="#a8b2be" style="stroke:var(--accent)" stroke-width="1"/>
+      <circle cx="16" cy="27" r="3" style="fill:var(--panel-2);stroke:var(--accent2)" stroke-width="1.2"/>
+      <circle cx="16" cy="16" r="1.5" style="fill:var(--accent)"/>
+    </svg>
+    <div class="logo">MONO<span class="accent">COPTER</span></div>
+  </div>
+  <div class="subtitle">Sekolah Vokasi UGM · Simulasi Terbang 3D · PID + Kalman · Faizahel Joasa Ariesta</div>
+  <div class="spacer"></div>
+  <button id="help-btn" onclick="toggleHelp()" title="Panduan & penjelasan parameter" aria-label="Bantuan">?</button>
+  <button id="theme-toggle" onclick="toggleTheme()" title="Ganti tema terang/gelap" aria-label="Ganti tema">
+    <span id="theme-icon">☾</span>
+  </button>
+  <span class="status-pill pill-green" id="sys-status">SYSTEM READY</span>
+  <span class="status-pill pill-blue" id="mode-status">AUTO</span>
+  <div id="sim-time">T+ 0.000 s</div>
+</div>
+<div id="main">
+  <div class="panel" id="ctrl-panel">
+    <div id="left-tabs">
+      <button class="ltab active" id="ltab-flight" onclick="switchLeftTab('flight')">✈ Flight</button>
+      <button class="ltab" id="ltab-waypoint" onclick="switchLeftTab('waypoint')">◎ Waypoint</button>
+    </div>
+    <div class="left-page active" id="lp-flight">
+      <!-- Panel status dinamis: dihitung ulang dari parameter fisik aktual -->
+      <div style="padding:9px 11px; border-bottom:1px solid var(--border); font-size:10px; font-family:var(--font-mono); line-height:1.85; flex-shrink:0;" id="plant-status-box">
+        <div style="font-weight:700; letter-spacing:1px; margin-bottom:4px;" id="plant-status-title">✓ PARAMETER STABIL</div>
+        <div style="color:var(--text-dim);" id="plant-line1">—</div>
+        <div style="color:var(--text-dim);" id="plant-line2">—</div>
+        <div style="color:var(--text-dim);" id="plant-line3">—</div>
+        <div style="color:var(--text-dim);" id="plant-line4">—</div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Parameter Fisik (Plant)</span>
+          <span style="font-size:9px;color:var(--text-dim);font-family:var(--font-mono)">uji ketidaksesuaian</span>
+        </div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Massa</span>
+          <input type="range" id="sl-mass" min="0.2" max="2.0" value="0.5" step="0.05">
+          <span class="ctrl-val" id="v-mass">0.50kg</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">kT (µ)</span>
+          <input type="range" id="sl-kt" min="0.5" max="4.0" value="1.99" step="0.01">
+          <span class="ctrl-val" id="v-kt">1.99e-6</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">ω_max</span>
+          <input type="range" id="sl-omega" min="800" max="3000" value="2046" step="10">
+          <span class="ctrl-val" id="v-omega">2046</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">K_eff</span>
+          <input type="range" id="sl-keff" min="0.02" max="0.30" value="0.1139" step="0.002">
+          <span class="ctrl-val" id="v-keff">0.114</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Ixx=Iyy</span>
+          <input type="range" id="sl-ixx" min="1.0" max="20.0" value="4.97" step="0.1">
+          <span class="ctrl-val" id="v-ixx">4.97m</span></div>
+        <div class="ctrl-row" title="Offset pusat massa dari sumbu thrust (ketidaksempurnaan rakitan): momen konstan τ=F_T·d yang harus dinetralkan integral PID">
+          <span class="ctrl-name" style="font-size:11px;">CG off</span>
+          <input type="range" id="sl-cgoff" min="0" max="10" value="0" step="0.5">
+          <span class="ctrl-val" id="v-cgoff">0.0mm</span></div>
+        <div class="btn-row" style="margin-top:4px;">
+          <button class="btn" onclick="setThrHoverFromPhysics()" style="font-size:10px;" title="Set Thr Base = √(mg/kT)/ω_max dari parameter saat ini">⚙ THR HOVER</button>
+          <button class="btn" onclick="resetPhysics()" style="font-size:10px; border-color:var(--green); color:var(--green);" title="Kembalikan ke parameter final skripsi">↺ NILAI SKRIPSI</button>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Setpoin Target</span>
+          <span style="font-size:9px;color:var(--text-dim);font-family:var(--font-mono)">joy: -1.0..+1.0</span>
+        </div>
+        <div class="ctrl-row"><span class="ctrl-name">Roll Ref</span>
+          <input type="range" id="sl-roll" min="-100" max="100" value="0" step="1">
+          <span class="ctrl-val" id="v-roll">0.00</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Pitch Ref</span>
+          <input type="range" id="sl-pitch" min="-100" max="100" value="0" step="1">
+          <span class="ctrl-val" id="v-pitch">0.00</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Yaw Rate</span>
+          <input type="range" id="sl-yaw" min="-100" max="100" value="0" step="1">
+          <span class="ctrl-val" id="v-yaw">0.00</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Ketinggian</span>
+          <input type="range" id="sl-alt" min="0" max="20" value="1.5" step="0.1">
+          <span class="ctrl-val" id="v-alt">1.5m</span></div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>PID Roll/Pitch</span>
+          <span style="font-size:9px;color:var(--text-dim);font-family:var(--font-mono)">PM≈65.0° ζ≈0.85</span>
+        </div>
+        <div class="ctrl-row"><span class="ctrl-name">Kp</span>
+          <input type="range" id="sl-kp" min="0.1" max="3.0" value="0.57836" step="0.01">
+          <span class="ctrl-val" id="v-kp">0.58</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Ki</span>
+          <input type="range" id="sl-ki" min="0" max="2.0" value="1.06540" step="0.01">
+          <span class="ctrl-val" id="v-ki">1.07</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Kd</span>
+          <input type="range" id="sl-kd" min="0" max="1.0" value="0.11654" step="0.01">
+          <span class="ctrl-val" id="v-kd">0.12</span></div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>PID Altitude</span><span style="font-size:9px;color:var(--text-dim)">teredam</span>
+        </div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Kp_alt</span>
+          <input type="range" id="sl-kp-alt" min="0.5" max="15.0" value="11.250" step="0.25">
+          <span class="ctrl-val" id="v-kp-alt">11.25</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Kd_alt</span>
+          <input type="range" id="sl-kd-alt" min="0" max="8.0" value="5.100" step="0.1">
+          <span class="ctrl-val" id="v-kd-alt">5.10</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Thr Base</span>
+          <input type="range" id="sl-thr-base" min="0.5" max="0.95" value="0.767" step="0.005">
+          <span class="ctrl-val" id="v-thr-base">0.767</span></div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn active" id="btn-antitorque" onclick="toggleAntiTorque()"
+            title="Matikan kolektif fin: torsi reaksi propeller tak terlawan → badan berputar (masalah dasar single-rotor)">🌀 ANTI-TORSI: ON</button>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Simulasi</div>
+        <div class="ctrl-row"><span class="ctrl-name">Speed</span>
+          <input type="range" id="sl-speed" min="0.1" max="3" value="1" step="0.1">
+          <span class="ctrl-val" id="v-speed">1.0x</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Noise</span>
+          <input type="range" id="sl-noise" min="0" max="1" value="0.3" step="0.05">
+          <span class="ctrl-val" id="v-noise">0.3</span></div>
+        <div class="ctrl-row"><span class="ctrl-name">Angin</span>
+          <input type="range" id="sl-wind" min="0" max="1" value="0" step="0.05">
+          <span class="ctrl-val" id="v-wind">0.00</span></div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Mode Kendali</div>
+        <div class="btn-row">
+          <button class="btn active" id="btn-auto" onclick="setMode('auto')">AUTO</button>
+          <button class="btn" id="btn-semi" onclick="setMode('semi')">SEMI</button>
+          <button class="btn" id="btn-manual" onclick="setMode('manual')">MANUAL</button>
+        </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn" id="btn-run" onclick="toggleSim()">▶ RUN</button>
+          <button class="btn danger" onclick="resetSim()">↺ RESET</button>
+        </div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn" id="btn-rec" onclick="toggleRecord()" style="font-size:11px;">⏺ REKAM</button>
+          <button class="btn" onclick="exportCSV()" style="font-size:11px; border-color:var(--green); color:var(--green);">⬇ CSV</button>
+        </div>
+        <div style="margin-top:5px; font-size:9px; color:var(--text-dim); font-family:var(--font-mono);" id="rec-status">Rekaman: 0 sampel</div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Kamera</div>
+        <div class="btn-row">
+          <button class="btn" onclick="setCam('follow')">IKUTI</button>
+          <button class="btn" onclick="setCam('top')">ATAS</button>
+          <button class="btn" onclick="setCam('side')">SAMPING</button>
+        </div>
+      </div>
+      <div class="ctrl-group" style="flex-shrink:0;">
+        <div class="ctrl-label">Keluaran Servo</div>
+        <div id="servo-viz"><canvas id="servo-cross-canvas" width="120" height="120"></canvas></div>
+        <div style="padding: 0 4px; margin-top:4px;">
+          <div class="pid-row"><span class="pid-name">S1</span>
+            <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pf-s1" style="background:var(--accent)"></div></div>
+            <span class="pid-numval" id="pv-s1">0.0°</span></div>
+          <div class="pid-row"><span class="pid-name">S2</span>
+            <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pf-s2" style="background:var(--accent2)"></div></div>
+            <span class="pid-numval" id="pv-s2">0.0°</span></div>
+          <div class="pid-row"><span class="pid-name">S3</span>
+            <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pf-s3" style="background:var(--green)"></div></div>
+            <span class="pid-numval" id="pv-s3">0.0°</span></div>
+          <div class="pid-row"><span class="pid-name">S4</span>
+            <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pf-s4" style="background:var(--yellow)"></div></div>
+            <span class="pid-numval" id="pv-s4">0.0°</span></div>
+          <div class="pid-row" title="Rerata (S1+S2+S3+S4)/4 = komponen kolektif fin yang melawan torsi reaksi propeller — tidak nol saat hover, itulah 'biaya' single-rotor">
+            <span class="pid-name" style="color:var(--magenta)">Yaw⊕</span>
+            <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pf-col" style="background:var(--magenta)"></div></div>
+            <span class="pid-numval" id="pv-col">0.0°</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="left-page" id="lp-waypoint">
+      <div class="ctrl-group" style="flex-shrink:0;">
+        <div class="ctrl-label">Guidance Mode</div>
+        <div class="btn-row">
+          <button class="btn active" id="btn-gm-ldh" onclick="setGuidanceMode('LAUNCH-DIR-HOLD')">DIR-HOLD</button>
+          <button class="btn" id="btn-gm-wp" onclick="setGuidanceMode('WAYPOINT')">WP-SEQ</button>
+        </div>
+        <div style="margin-top:6px; font-family:var(--font-mono); font-size:10px; color:var(--magenta); letter-spacing:1px; padding:0 2px;" id="gm-label">LAUNCH-DIR-HOLD</div>
+      </div>
+      <div class="ctrl-group" style="flex-shrink:0;">
+        <div class="ctrl-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Waypoints</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--accent)" id="wp-count-lbl">0 pts</span>
+        </div>
+        <div id="wp-list"></div>
+      </div>
+      <div id="wp-editor" style="flex-shrink:0;">
+        <div class="ctrl-label" style="margin-bottom:6px;">Add / Edit Waypoint</div>
+        <div class="wp-input-row"><label>X</label><input type="number" id="wp-in-x" value="0" step="0.5"></div>
+        <div class="wp-input-row"><label>Y</label><input type="number" id="wp-in-y" value="1.5" step="0.5"></div>
+        <div class="wp-input-row"><label>Z</label><input type="number" id="wp-in-z" value="0" step="0.5"></div>
+        <div class="wp-input-row"><label style="width:32px;font-size:9px;">R(m)</label><input type="number" id="wp-in-r" value="0.6" step="0.1" min="0.1"></div>
+        <div class="btn-row" style="margin-top:4px;">
+          <button class="btn" onclick="addWaypoint()" style="font-size:11px;">+ ADD</button>
+          <button class="btn" onclick="clearWaypoints()" style="font-size:11px; border-color:var(--red); color:var(--red);">✕ CLEAR</button>
+        </div>
+        <div class="ctrl-label" style="margin-top:8px; margin-bottom:6px;">⚡ Quick Launch Presets</div>
+        <div style="display:flex; flex-direction:column; gap:5px;">
+          <button class="btn" onclick="runScriptedScenario13()" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4; border-color:var(--green); color:var(--green);">
+            <b>⇄ VALIDASI LINTAS PLATFORM (13-FASE)</b><br>
+            <span style="font-size:9px; opacity:0.8; font-weight:400;">Setpoint scripted identik simulasi_full_system.py/.m · auto-rekam & auto-CSV di t=28s</span></button>
+          <button class="btn" onclick="loadPreset('uji')" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4; border-color:var(--magenta); color:var(--magenta);">
+            <b>★ SKENARIO UJI (SKRIPSI)</b><br>
+            <span style="font-size:9px; opacity:0.8; font-weight:400;">Takeoff→Roll→Pitch→Yaw→Landing</span></button>
+          <button class="btn" onclick="loadPreset('straight')" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4;">
+            <b>① STRAIGHT CLIMB</b><br>
+            <span style="font-size:9px; opacity:0.7; font-weight:400;">Naik lurus · DIR-HOLD</span></button>
+          <button class="btn" onclick="loadPreset('orbit')" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4;">
+            <b>② ORBIT LOOP</b><br>
+            <span style="font-size:9px; opacity:0.7; font-weight:400;">Melingkar · WP-SEQ</span></button>
+          <button class="btn" onclick="loadPreset('zigzag')" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4;">
+            <b>③ ZIGZAG SLALOM</b><br>
+            <span style="font-size:9px; opacity:0.7; font-weight:400;">Kiri-kanan · WP-SEQ</span></button>
+          <button class="btn" onclick="loadPreset('ascent')" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4;">
+            <b>④ SPIRAL ASCENT</b><br>
+            <span style="font-size:9px; opacity:0.7; font-weight:400;">Spiral naik · WP-SEQ</span></button>
+          <button class="btn" onclick="loadPreset('return')" style="font-size:10px; text-align:left; padding:6px 8px; line-height:1.4;">
+            <b>⑤ GO &amp; RETURN</b><br>
+            <span style="font-size:9px; opacity:0.7; font-weight:400;">Pergi-balik · DIR-HOLD</span></button>
+        </div>
+        <div style="margin-top:6px; padding:6px 8px; background:rgba(61,214,245,0.06); border:1px solid var(--border-lt); border-radius:5px; font-size:9px; color:var(--text-dim); line-height:1.65;">
+          💡 Klik preset → parameter ter-set otomatis<br>lalu klik <b>▶ START NAV</b> untuk mulai
+        </div>
+      </div>
+      <div class="ctrl-group" style="flex-shrink:0;">
+        <div class="ctrl-label">Navigation</div>
+        <div class="btn-row">
+          <button class="btn active" id="btn-wp-run" onclick="toggleWpNav()" style="font-size:11px;">▶ START NAV</button>
+          <button class="btn danger" onclick="resetWpNav()" style="font-size:11px;">↺ RESET</button>
+        </div>
+        <div style="margin-top:6px; padding:0 2px;">
+          <div class="ctrl-row" style="font-size:10px; font-family:var(--font-mono);">
+            <span class="ctrl-name" style="font-size:10px; color:var(--text-dim);">WP Index</span>
+            <span class="ctrl-val" id="wp-idx-lbl" style="color:var(--accent);">—</span></div>
+          <div class="ctrl-row" style="font-size:10px; font-family:var(--font-mono);">
+            <span class="ctrl-name" style="font-size:10px; color:var(--text-dim);">Dist to WP</span>
+            <span class="ctrl-val" id="wp-dist-lbl" style="color:var(--green);">— m</span></div>
+          <div class="ctrl-row" style="font-size:10px; font-family:var(--font-mono);">
+            <span class="ctrl-name" style="font-size:10px; color:var(--text-dim);">Lateral G</span>
+            <span class="ctrl-val" id="wp-g-lbl" style="color:var(--accent2);">— g</span></div>
+          <div class="ctrl-row" style="font-size:10px; font-family:var(--font-mono);">
+            <span class="ctrl-name" style="font-size:10px; color:var(--text-dim);">ETA</span>
+            <span class="ctrl-val" id="wp-eta-lbl" style="color:var(--text-dim);">— s</span></div>
+        </div>
+      </div>
+      <div class="ctrl-group" style="flex-shrink:0;">
+        <div class="ctrl-label">Navigation Gains</div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Kn_pos</span>
+          <input type="range" id="sl-kn" min="0.05" max="1.0" value="0.25" step="0.05">
+          <span class="ctrl-val" id="v-kn">0.25</span></div>
+        <div class="ctrl-row"><span class="ctrl-name" style="font-size:11px;">Max Tilt</span>
+          <input type="range" id="sl-maxtilt" min="2" max="20" value="10" step="1">
+          <span class="ctrl-val" id="v-maxtilt">10°</span></div>
+      </div>
+    </div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="three-canvas"></canvas>
+    <div id="canvas-overlay"><div id="ov-fps">FPS <b>--</b></div><div id="ov-state">STATUS <b>SIAGA</b></div></div>
+    <div id="crosshair"><svg width="20" height="20" viewBox="0 0 20 20">
+      <line x1="10" y1="0" x2="10" y2="7" stroke="#0077cc" stroke-width="1"/>
+      <line x1="10" y1="13" x2="10" y2="20" stroke="#0077cc" stroke-width="1"/>
+      <line x1="0" y1="10" x2="7" y2="10" stroke="#0077cc" stroke-width="1"/>
+      <line x1="13" y1="10" x2="20" y2="10" stroke="#0077cc" stroke-width="1"/>
+      <circle cx="10" cy="10" r="2" stroke="#0077cc" fill="none" stroke-width="1"/></svg></div>
+    <div id="mode-badge">AUTO</div>
+    <div id="target-info">
+      POS  X:<span id="ti-x">0.00</span>m  Z:<span id="ti-z">0.00</span>m<br>
+      ALT  <span id="ti-y">1.5</span>m  <span id="ti-alt-err" style="color:var(--accent)">Δ0.00</span><br>
+      ROLL <span id="ti-roll">0.00</span>  PTCH <span id="ti-pitch">0.00</span></div>
+    <div id="guidance-overlay">
+      <div>Guidance Mode:</div><div class="gmode" id="gov-mode">LAUNCH-DIR-HOLD</div>
+      <div>Distance To Waypoint: <b id="gov-dist">—</b> m</div>
+      <div>Lateral G Loading: <b id="gov-g">—</b> g</div></div>
+    <div id="wp-data-box">
+      <div class="wdb-title">◎ Waypoint Navigation</div>
+      <div class="wdb-row"><span class="wdb-label">WP #</span><span class="wdb-val" id="wdb-idx">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">Target</span><span class="wdb-val" id="wdb-tgt">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">Distance</span><span class="wdb-val" id="wdb-dist">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">Bearing</span><span class="wdb-val" id="wdb-bear">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">Speed</span><span class="wdb-val" id="wdb-spd">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">Lat G</span><span class="wdb-val" id="wdb-g">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">ETA</span><span class="wdb-val" id="wdb-eta">—</span></div>
+      <div class="wdb-row"><span class="wdb-label">Status</span><span class="wdb-val" id="wdb-status">—</span></div></div>
+    <div id="wp-progress-bar"><div id="wp-progress-fill" style="width:0%"></div></div>
+  </div>
+  <div class="panel" id="telem-panel">
+    <div class="panel-header">Telemetri</div>
+    <div class="telem-grid">
+      <div class="telem-card"><div class="telem-title">Ketinggian</div><div class="telem-value" id="t-alt" style="color:var(--green)">0.00</div>
+        <div class="telem-unit">meter</div><div class="telem-bar-wrap"><div class="telem-bar" id="tb-alt" style="background:var(--green)"></div></div></div>
+      <div class="telem-card"><div class="telem-title">Throttle</div><div class="telem-value" id="t-thr" style="color:var(--accent)">0.0</div>
+        <div class="telem-unit">persen</div><div class="telem-bar-wrap"><div class="telem-bar" id="tb-thr" style="background:var(--accent)"></div></div></div>
+      <div class="telem-card"><div class="telem-title">Roll (φ)</div><div class="telem-value" id="t-roll" style="color:var(--accent2)">0.0</div>
+        <div class="telem-unit">derajat</div><div class="telem-bar-wrap"><div class="telem-bar" id="tb-roll" style="background:var(--accent2)"></div></div></div>
+      <div class="telem-card"><div class="telem-title">Pitch (θ)</div><div class="telem-value" id="t-pitch" style="color:var(--yellow)">0.0</div>
+        <div class="telem-unit">derajat</div><div class="telem-bar-wrap"><div class="telem-bar" id="tb-pitch" style="background:var(--yellow)"></div></div></div>
+      <div class="telem-card telem-card-full"><div class="telem-title">Yaw (ψ)</div><div class="telem-value" id="t-yaw" style="color:var(--red)">0.0</div>
+        <div class="telem-unit" id="t-yawrate">derajat · ψ̇ 0°/s</div><div class="telem-bar-wrap"><div class="telem-bar" id="tb-yaw" style="background:var(--red);width:50%"></div></div></div>
+    </div>
+    <div class="panel-header" style="margin-top:4px">Galat PID</div>
+    <div style="padding: 8px 0;">
+      <div class="pid-row"><span class="pid-name" style="color:var(--accent2)">Roll</span>
+        <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pe-roll" style="background:var(--accent2)"></div></div>
+        <span class="pid-numval" id="pev-roll">0.0°</span></div>
+      <div class="pid-row"><span class="pid-name" style="color:var(--yellow)">Pitch</span>
+        <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pe-pitch" style="background:var(--yellow)"></div></div>
+        <span class="pid-numval" id="pev-pitch">0.0°</span></div>
+      <div class="pid-row"><span class="pid-name" style="color:var(--red)">Yaw</span>
+        <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pe-yaw" style="background:var(--red)"></div></div>
+        <span class="pid-numval" id="pev-yaw">0.0°</span></div>
+      <div class="pid-row"><span class="pid-name" style="color:var(--green)">Alt</span>
+        <div class="pid-bar-wrap"><div class="pid-center"></div><div class="pid-fill" id="pe-alt" style="background:var(--green)"></div></div>
+        <span class="pid-numval" id="pev-alt">0.0m</span></div>
+    </div>
+    <div class="panel-header">Status Kalman</div>
+    <div style="padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; line-height:2;">
+      <div>φ_est: <span id="k-roll" style="color:var(--accent)">0.000</span> rad</div>
+      <div>θ_est: <span id="k-pitch" style="color:var(--accent)">0.000</span> rad</div>
+      <div>K_roll: <span id="k-gain-r" style="color:var(--green)">0.000</span></div>
+      <div>K_pitch: <span id="k-gain-p" style="color:var(--green)">0.000</span></div>
+      <div>P_roll: <span id="k-cov-r" style="color:var(--text-dim)">1.000</span></div>
+    </div>
+    <div class="panel-header">Lintasan Waypoint</div>
+    <div id="wp-map-wrap"><canvas id="wp-map-canvas"></canvas></div>
+  </div>
+  <div class="panel" id="chart-strip">
+    <div id="chart-tabs">
+      <button class="chart-tab active" onclick="setChartTab(0,this)">Roll/Pitch</button>
+      <button class="chart-tab" onclick="setChartTab(1,this)">Ketinggian</button>
+      <button class="chart-tab" onclick="setChartTab(2,this)">Servo</button>
+      <button class="chart-tab" onclick="setChartTab(3,this)">Keluaran PID</button>
+      <button class="chart-tab" onclick="setChartTab(4,this)">Kalman</button>
+    </div>
+    <div id="chart-canvas-wrap"><canvas id="chart-canvas"></canvas></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<div id="help-overlay" onclick="if(event.target===this)toggleHelp()">
+  <div id="help-modal">
+    <div id="help-head">
+      <span style="font-size:20px">🚁</span>
+      <h2>Panduan Simulator <span class="accent">Monochopter 3D</span></h2>
+      <button id="help-close" onclick="toggleHelp()">✕</button>
+    </div>
+    <div id="help-tabs">
+      <button class="help-tab active" onclick="setHelpTab(0,this)">Pengantar</button>
+      <button class="help-tab" onclick="setHelpTab(1,this)">Cara Pakai</button>
+      <button class="help-tab" onclick="setHelpTab(2,this)">Parameter PID</button>
+      <button class="help-tab" onclick="setHelpTab(3,this)">Navigasi & Waypoint</button>
+      <button class="help-tab" onclick="setHelpTab(4,this)">Simulasi & Tampilan</button>
+      <button class="help-tab" onclick="setHelpTab(5,this)">Grafik & Data</button>
+    </div>
+    <div id="help-body">
+
+      <div class="help-page active" id="hp-0">
+        <h3>Apa itu simulator ini?</h3>
+        <p>Simulator ini meniru perilaku terbang sebuah <b>monochopter</b> — wahana terbang dengan satu propeller dan empat sirip servo (control vane) di bawahnya. Seluruh rantai kendali dihitung secara numerik di peramban, identik dengan model MATLAB/Simulink dan firmware ESP32: <code>Panduan → Kalman → PID → Servo Mixer → Plant</code>.</p>
+        <p>Tujuannya: memvisualisasikan bagaimana wahana menjaga kestabilan sikap (<i>roll</i>, <i>pitch</i>, <i>yaw</i>) dan menavigasi melewati titik-titik <i>waypoint</i> secara otonom.</p>
+        <h4>Anatomi wahana</h4>
+        <ul>
+          <li><b>Nose cone (biru gelap)</b> — hidung ogive di puncak.</li>
+          <li><b>Body putih-perak</b> — badan utama berisi avionik, dengan pita pemisah dan baut.</li>
+          <li><b>Controller</b> — seksi bawah dengan LED indikator.</li>
+          <li><b>Propeller</b> — di dalam kerangka kaki, sumber gaya angkat.</li>
+          <li><b>4 sirip servo (merah)</b> — di bawah propeller. Memuntir diagonal untuk mengarahkan aliran udara dan mengendalikan sikap wahana. Inilah aktuator utama monochopter.</li>
+        </ul>
+        <div class="help-warn"><b>Singkatnya:</b> propeller memberi daya angkat, empat sirip merah mengubah arah dengan memuntir diagonal terhadap aliran udara propeller.</div>
+        <h4>Mengapa monochopter berputar? (torsi reaksi — Hukum III Newton)</h4>
+        <p>Motor memberi torsi untuk memutar propeller; propeller memberi <b>torsi reaksi sama besar berlawanan arah</b> ke badan wahana. Quadcopter menghilangkannya dengan pasangan motor berputar berlawanan; single-rotor <b>tidak punya motor pembalik</b>, jadi tanpa perlawanan badan akan berputar makin cepat sampai dibatasi redaman udara.</p>
+        <p>Pada monochopter ini, perlawanan datang dari <b>defleksi kolektif keempat fin</b> di aliran prop wash (torsi reaksi Q = c_q·F_T di simulator). Karena itu: (1) saat hover fin <b>tidak pernah netral</b> — lihat baris <code>Yaw⊕</code> di panel Keluaran Servo (≈6° pada hover desain) dan panah <span style="color:var(--accent2)">Q prop</span> vs <span style="color:var(--magenta)">fin</span> di diagram silang; (2) perintah <b>Yaw Rate</b> hanya menambah/mengurangi sedikit di atas trim itu — laju putar berubah (lihat ψ̇ di kartu Yaw) meski bar servo tampak nyaris diam, karena menahan laju konstan hanya butuh torsi sebesar redaman udara.</p>
+        <p>Untuk memperagakan masalah dasarnya: tekan tombol <b>🌀 ANTI-TORSI: ON→OFF</b> (grup PID Alt + Yaw). Kolektif fin dimatikan, torsi reaksi tak terlawan, dan badan berputar liar — persis perilaku single-rotor tanpa kendali yaw. Nyalakan kembali dan amati PID yaw menangkap putarannya.</p>
+      </div>
+
+      <div class="help-page" id="hp-1">
+        <h3>Langkah cepat menjalankan simulasi</h3>
+        <div class="help-step"><div class="num">1</div><div class="txt">Pilih salah satu <b>Skenario Uji</b> (tombol ungu di panel kiri: Uji Skripsi, Straight Climb, Orbit, Zigzag, Spiral, Go&Return). Memilih skenario otomatis mengatur PID, mode panduan, dan daftar waypoint.</div></div>
+        <div class="help-step"><div class="num">2</div><div class="txt">Tekan <b>▶ Mulai</b> (atau tombol jalankan WP). Wahana akan lepas landas dan menavigasi waypoint secara otomatis.</div></div>
+        <div class="help-step"><div class="num">3</div><div class="txt">Amati <b>peta lintasan</b> di sidebar kanan (bawah Status Kalman) dan <b>grafik</b> di bawah untuk melihat respons sistem.</div></div>
+        <div class="help-step"><div class="num">4</div><div class="txt">Gunakan tombol <b>Kamera</b> (Ikuti / Atas / Samping) untuk mengubah sudut pandang.</div></div>
+        <div class="help-step"><div class="num">5</div><div class="txt">Untuk merekam data: tekan <b>⏺ Rekam</b> sebelum menjalankan, lalu <b>⬇ CSV</b> untuk mengunduh hasilnya.</div></div>
+        <h4>Mode kendali</h4>
+        <p><b>Auto</b> — sistem panduan penuh mengatur sikap menuju waypoint. <b>Semi</b> — kombinasi panduan dan input manual. <b>Manual</b> — Anda mengatur referensi roll/pitch/yaw/altitude lewat slider.</p>
+      </div>
+
+      <div class="help-page" id="hp-2">
+        <h3>Parameter PID Sikap</h3>
+        <p>PID mengubah <i>galat sikap</i> (selisih sudut aktual dan referensi) menjadi perintah <b>torsi kendali</b> (N·m), yang kemudian dikonversi menjadi defleksi servo oleh Servo Mixer (gain scheduling + feedforward). Tiga penguatan menentukan karakter responsnya.</p>
+
+        <div class="param-card">
+          <div class="pname">Kp — Proportional (roll/pitch)</div>
+          <div class="prange">rentang 0.1–3.0 · default 0.578 (pole placement)</div>
+          <div class="pdesc">Penguatan sebanding galat. Semakin besar, semakin kuat dan cepat wahana mengoreksi simpangan.</div>
+          <div class="peffect">Naikkan → respons lebih cepat tetapi <b>berisiko overshoot & osilasi</b>. Turunkan → lebih lembut tapi <b>lamban</b> dan galat sisa lebih besar.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Ki — Integral</div>
+          <div class="prange">rentang 0–2.0 · default 1.065 (pole placement)</div>
+          <div class="pdesc">Mengakumulasi galat dari waktu ke waktu untuk menghapus galat tunak (offset permanen).</div>
+          <div class="peffect">Naikkan → menghilangkan galat sisa, tapi terlalu besar menyebabkan <b>windup & osilasi lambat</b>. Turunkan → galat tunak bisa menetap.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Kd — Derivative</div>
+          <div class="prange">rentang 0–1.0 · default 0.117 (pole placement)</div>
+          <div class="pdesc">Merespons laju perubahan galat — berfungsi sebagai peredam.</div>
+          <div class="peffect">Naikkan → <b>meredam overshoot</b> & menstabilkan, tapi terlalu besar memperkuat <b>noise sensor</b> jadi gerakan gemetar. Turunkan → lebih halus tapi mudah overshoot.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Kp_alt / Kd_alt — PID Ketinggian</div>
+          <div class="prange">Kp_alt 0.5–15.0 (def 11.25) · Kd_alt 0–8.0 (def 5.10)</div>
+          <div class="pdesc">Menghasilkan koreksi gaya dorong ΔF_T (N), dikonversi ke Δthrottle lewat Force-to-Throttle Conversion, agar wahana mencapai dan menahan ketinggian referensi.</div>
+          <div class="peffect">Kp_alt naik → naik ke ketinggian target lebih cepat tapi bisa <b>melampaui</b>. Kd_alt naik → <b>meredam ayunan</b> ketinggian.</div>
+        </div>
+        <div class="help-warn"><b>Nilai final skripsi (BAB III, pole placement):</b> roll/pitch Kp=0.578, Ki=1.065, Kd=0.117 (PM≈65,0°); yaw Kp=0.164, Ki=0.301, Kd=0.033; altitude Kp=11.25, Ki=8.44, Kd=5.10 (ωn=1,5 rad/s, ζ=0,90).</div>
+      </div>
+
+      <div class="help-page" id="hp-3">
+        <h3>Navigasi & Waypoint</h3>
+        <p>Sistem panduan memakai hukum <b>velocity-targeting</b>: menghitung kecepatan yang diinginkan menuju waypoint, lalu mengubahnya menjadi perintah kemiringan. Ini mencegah wahana melampaui target lalu menyimpang (divergen).</p>
+
+        <div class="param-card">
+          <div class="pname">Kn — Penguatan Navigasi</div>
+          <div class="prange">rentang 0.05–1.0 · default 0.20–0.25</div>
+          <div class="pdesc">Mengatur seberapa agresif panduan mengarahkan wahana ke waypoint.</div>
+          <div class="peffect">Naikkan → wahana <b>lebih agresif</b> menuju target, manuver lebih tajam tapi bisa overshoot. Turunkan → lintasan <b>lebih mulus</b> tapi lambat.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Maks. Tilt — Batas Kemiringan</div>
+          <div class="prange">rentang 2°–20° · default 10–14°</div>
+          <div class="pdesc">Sudut kemiringan maksimum yang diizinkan saat manuver.</div>
+          <div class="peffect">Naikkan → percepatan lateral lebih besar, <b>manuver lebih cepat</b> tapi sikap lebih ekstrem. Turunkan → gerakan <b>lebih aman & halus</b> tapi lambat berbelok.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Vmax — Kecepatan Jelajah</div>
+          <div class="prange">rentang ~1.2–1.5 m/s (per skenario)</div>
+          <div class="pdesc">Batas kecepatan horizontal menuju waypoint.</div>
+          <div class="peffect">Naikkan → sampai lebih cepat tapi butuh pengereman lebih kuat saat mendekat. Turunkan → lebih terkontrol.</div>
+        </div>
+        <h4>Mengelola waypoint</h4>
+        <ul>
+          <li><b>Daftar waypoint</b> di panel kiri menampilkan koordinat (x=maju, y=ketinggian, z=lateral) dan radius pencapaian.</li>
+          <li><b>Editor</b>: masukkan X/Y/Z/R lalu tambahkan titik baru.</li>
+          <li>Waypoint dianggap <b>tercapai</b> bila wahana masuk dalam radiusnya, lalu panduan beralih ke titik berikutnya.</li>
+        </ul>
+        <h4>Mode panduan</h4>
+        <p><b>WAYPOINT (WP-SEQ)</b> — mengikuti urutan waypoint. <b>LAUNCH-DIR-HOLD</b> — mempertahankan arah peluncuran (untuk lintasan lurus/menanjak).</p>
+      </div>
+
+      <div class="help-page" id="hp-4">
+        <h3>Parameter Simulasi & Tampilan</h3>
+
+        <div class="param-card">
+          <div class="pname">Parameter Fisik Plant (Massa / kT / ω_max / K_eff / Ixx)</div>
+          <div class="prange">default = nilai final skripsi: m=0.5 kg · kT=1.99e-6 · ω_max=2046 · K_eff=0.1139 · Ixx=4.97e-3</div>
+          <div class="pdesc">Parameter plant kini dapat diubah live untuk menguji perilaku sistem kontrol saat wahana <b>tidak sesuai desain</b>. Panel status di atas menghitung ulang <code>F_max = kT·ω_max²</code>, berat <code>m·g</code>, dan <code>TWR = F_max/(m·g)</code> setiap kali digeser.</div>
+          <div class="peffect">Naikkan <b>massa</b> hingga TWR &lt; 1 → throttle tersaturasi penuh tetapi gaya angkat tetap kurang dari berat, sehingga wahana <b>tidak terangkat</b> (status: TWR&lt;1 · TIDAK TERANGKAT) — konsisten dengan temuan TWR ≈ 0.65 pada prototipe fisik. Turunkan <b>kT/ω_max</b> → efek serupa. Ubah <b>K_eff/Ixx</b> → otoritas dan kelincahan sikap berubah; PID hasil pole-placement yang ditala untuk plant nominal akan tampak underdamped/lamban. Tombol <b>⚙ THR HOVER</b> menghitung ulang throttle hover dari fisika; <b>↺ NILAI SKRIPSI</b> mengembalikan semuanya.</div>
+        </div>
+        <div class="help-warn"><b>Eksperimen skripsi:</b> geser massa ke ~1.3 kg (TWR ≈ 0.65 seperti prototipe) lalu RUN — throttle mentok 99% namun ketinggian tetap 0. Ini demonstrasi numerik dari kesimpulan BAB V.</div>
+
+        <div class="param-card">
+          <div class="pname">Throttle Dasar (hover)</div>
+          <div class="prange">rentang 0.5–0.95 · default 0.767</div>
+          <div class="pdesc">Throttle yang dibutuhkan untuk melayang setimbang (gaya angkat = berat).</div>
+          <div class="peffect">Nilai 0.767 berasal dari fisika (<code>√(mg/kT)/ω_max</code>). Naikkan → wahana <b>cenderung naik</b>; turunkan → <b>cenderung turun</b>. Ubah hanya jika mengganti massa/propeller.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Offset CG (Parameter Fisik → "CG off")</div>
+          <div class="prange">0–10 mm · default 0 (rakitan ideal)</div>
+          <div class="pdesc">Bila pusat massa tidak tepat di sumbu thrust — kondisi rakitan nyata — thrust menghasilkan momen konstan τ = F_T·d.</div>
+          <div class="peffect">Geser ke 5–8 mm: wahana miring sesaat, lalu <b>integral PID</b> menetralkannya (amati keluaran servo tidak lagi simetris). Inilah demonstrasi mengapa suku Ki dibutuhkan pada kontroler sikap. Offset besar + Ki = 0 → miring permanen &amp; melayang menjauh.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Baterai 3S LiPo 11.1 V (otomatis, sesuai hardware)</div>
+          <div class="prange">kapasitas efektif 0.6 Ah · Rint 0.04 Ω · arus ≈ 9 A pada hover desain</div>
+          <div class="pdesc">Arus motor ∝ ω³. Tegangan turun karena beban (sag I·R) dan pengurasan kapasitas (kurva LiPo dengan "tebing" di ujung). ω_max efektif = V/11.1 V — selama V ≥ 11.1 V perilaku identik model BAB IV.</div>
+          <div class="peffect">Inilah mekanisme fisis nyata mengapa <b>beban lebih berat = batas kinerja lebih rendah</b>: massa besar → ω hover tinggi → arus besar → tegangan jatuh lebih cepat → wahana mula-mula bisa naik, lalu <b>tidak mampu mempertahankan ketinggian</b> dan turun. Coba massa 0.75–0.8 kg: terbang beberapa puluh detik lalu melorot; baris "Batt" di panel status berubah oranye/merah. RESET mengisi ulang baterai.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Angin / Gust</div>
+          <div class="prange">rentang 0–1 · default 0</div>
+          <div class="pdesc">Gangguan atmosfer: gaya lateral gust (random-walk berkorelasi) plus torsi acak pada ketiga sumbu sikap.</div>
+          <div class="peffect">Naikkan → menguji <b>penolakan gangguan</b> (disturbance rejection) PID; wahana bergoyang &amp; terseret lateral, guidance harus terus mengoreksi. PID lemah + angin penuh bisa berujung <b>CRASH</b>.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Level Noise Sensor</div>
+          <div class="prange">rentang 0–1 · default 0.3</div>
+          <div class="pdesc">Besar derau acak yang ditambahkan ke pembacaan sensor (mensimulasikan IMU nyata).</div>
+          <div class="peffect">Naikkan → menguji <b>ketahanan Kalman filter & PID</b> terhadap gangguan; gerakan lebih gemetar. Nol → kondisi ideal tanpa derau.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Kecepatan Simulasi</div>
+          <div class="prange">rentang 0.1–3× · default 1×</div>
+          <div class="pdesc">Mempercepat/memperlambat jalannya waktu simulasi.</div>
+          <div class="peffect">Naikkan → lihat hasil lebih cepat. Turunkan → amati detail transisi dengan saksama. <b>Tidak mengubah fisika</b>, hanya laju pemutaran.</div>
+        </div>
+        <div class="param-card">
+          <div class="pname">Slider Referensi Manual (Roll/Pitch/Yaw/Alt)</div>
+          <div class="prange">Roll/Pitch/Yaw -100…100 · Alt 0–20 m</div>
+          <div class="pdesc">Hanya aktif di mode <b>Manual/Semi</b>. Menetapkan sikap/ketinggian target.</div>
+          <div class="peffect">Geser → wahana mengejar nilai itu lewat PID. Bagus untuk menguji respons satu sumbu.</div>
+        </div>
+        <h4>Fisika realistis yang selalu aktif</h4>
+        <ul>
+          <li><b>Torsi reaksi propeller</b> (Q = c_q·F_T) terus memutar badan — ciri khas monochopter; fin berdefleksi kolektif melawannya (amati keluaran servo tidak nol saat hover). PID yaw tanpa Ki menyisakan putaran pelan.</li>
+          <li><b>Efektivitas fin ∝ ω²</b> (prop wash): throttle rendah = otoritas sikap melemah.</li>
+          <li><b>Dinamika servo</b>: lag orde-1 (~40 ms) + batas laju ~60°/0,1 s — gain PID berlebihan kini benar-benar berosilasi/tak stabil seperti hardware nyata.</li>
+          <li><b>Kopling giroskopik prop</b>: laju pitch menginduksi torsi roll (dan sebaliknya).</li>
+          <li><b>Dinamika spin-up rotor</b>: ω aktual mengejar target dgn lag ~80 ms (inersia motor+prop) — throttle tidak instan; margin fase loop altitude berkurang secara realistis.</li>
+          <li><b>Yaw kick</b> τ = Ip·dω/dt: percepatan rotor menyentak yaw setiap throttle berubah cepat — khas single-rotor; amati blip ψ̇ saat step ketinggian.</li>
+          <li><b>Ground effect</b> (Cheeseman–Bennett): thrust menguat 1/(1−(R/4h)²) dekat tanah — wahana "mengambang" saat lepas landas/mendarat; ≈ netral di hover 1,5 m.</li>
+          <li><b>Vortex ring state</b>: turun lebih cepat dari ~0,35·vi (kecepatan induksi rotor) → thrust rontok hingga 35% — turun terlalu agresif berbahaya, persis heli nyata.</li>
+          <li><b>Momen aero translasi (CP di bawah CG)</b>: bergerak/tertiup angin menimbulkan momen yang menambah kemiringan searah gerak — PID sikap terus melawannya saat jelajah waypoint.</li>
+          <li><b>Vibrasi prop → accelerometer</b>: noise accel ∝ ω² (kalibrasi 1,0 di hover desain) — throttle tinggi membuat estimasi Kalman lebih berisik, seperti hardware.</li>
+          <li><b>CRASH</b>: menyentuh tanah miring &gt;50° atau menghantam &gt;3,5 m/s mematikan kontrol — tekan ↺ RESET. Divergensi numerik akibat parameter ekstrem juga terdeteksi sebagai crash, bukan layar rusak.</li>
+        </ul>
+        <h4>Kamera & Tema</h4>
+        <p>Tombol <b>Ikuti / Atas / Samping</b> mengubah sudut pandang. Tombol <b>☾/☀</b> beralih tema gelap/terang (UI dan scene 3D ikut berubah).</p>
+      </div>
+
+      <div class="help-page" id="hp-5">
+        <h3>Membaca Grafik & Data</h3>
+        <p>Lima tab grafik di bawah menampilkan data deret-waktu. Setiap grafik punya <b>penanda nilai terkini</b> di ujung kanan (titik + kotak angka) yang cocok dengan telemetri di sidebar kiri.</p>
+        <h4>Tab grafik</h4>
+        <ul>
+          <li><b>Roll/Pitch</b> — sudut sikap aktual (warna), estimasi Kalman (sian), dan setpoin (abu). Idealnya garis aktual mengikuti setpoin dengan overshoot kecil.</li>
+          <li><b>Ketinggian</b> — ketinggian aktual vs target, plus throttle. Cek apakah mencapai target tanpa ayunan berlebih.</li>
+          <li><b>Servo</b> — defleksi keempat sirip (S1–S4) dalam derajat.</li>
+          <li><b>Keluaran PID</b> — sinyal kendali roll/pitch/yaw.</li>
+          <li><b>Kalman</b> — perbandingan sinyal mentah (abu) vs estimasi tersaring (warna). Estimasi harus lebih halus dari mentah.</li>
+        </ul>
+        <h4>Peta lintasan (sidebar kanan)</h4>
+        <p>Tampak atas (top-down): lingkaran berwarna = waypoint, garis sian = jejak lintasan, titik merah = posisi wahana. Garis putus-putus menuju waypoint aktif.</p>
+        <h4>Status Kalman</h4>
+        <p>Menampilkan estimasi sudut (φ_est, θ_est), penguatan Kalman (K), dan kovarians (P). Penguatan yang mengecil dan kovarians yang turun menandakan filter telah konvergen.</p>
+        <h4>Ekspor CSV</h4>
+        <p>Tombol <b>⏺ Rekam</b> mencatat seluruh keadaan (sikap, posisi, servo, throttle, indeks waypoint) tiap langkah. <b>⬇ CSV</b> mengunduhnya — formatnya selaras dengan keluaran Python untuk perbandingan kuantitatif.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  
+const DEG = Math.PI/180;
+const RAD = 180/Math.PI;
+
+const SIM = {
+  running: false, t: 0, dt: 0.005, speed: 1.0, mode: 'auto',
+  noiseLevel: 0.3, camMode: 'follow', chartTab: 0,
+  // Physical state
+  phi: 0, dphi: 0, theta: 0, dtheta: 0, psi: 0, dpsi: 0,
+  x: 0, dx: 0, y: 0, dy: 0, z: 0, dz: 0,
+  // Setpoints
+  rollRef: 0, pitchRef: 0, yawRef: 0, altRef: 1.5,
+  throttleBase: 0.767,              // hover throttle (dari fisika)
+  // PID gains — FINAL hasil pole placement (BAB III, omega_n=3.5 rad/s, zeta=0.85, alpha=5)
+  Kp: 0.57836, Ki: 1.06540, Kd: 0.11654,
+  Kp_yaw: 0.16365, Ki_yaw: 0.30146, Kd_yaw: 0.03298,     // b_yaw=1/Izz, spesifikasi sama dgn roll/pitch
+  Kp_alt: 11.250, Ki_alt: 8.4375, Kd_alt: 5.100,          // omega_n=1.5 rad/s, zeta=0.90 (BAB III)
+  // PID state
+  intRoll:0, intPitch:0, intYaw:0, intAlt:0,
+  prevErrRoll:0, prevErrPitch:0, prevErrYaw:0, prevErrAlt:0,
+  // Kalman state
+  xK_roll:[0,0], PK_roll:[[1,0],[0,1]],
+  xK_pitch:[0,0], PK_pitch:[[1,0],[0,1]],
+  kGainRoll:0, kGainPitch:0,
+  // Servo outputs
+  s1:0, s2:0, s3:0, s4:0, throttle: 0.767,
+  // Physical params — FINAL
+  m:0.5, g:9.81, Ixx:4.97e-3, Iyy:4.97e-3, Izz:1.406e-3,
+  kT:1.9923e-06, omega_max:2046,
+  Keff:0.1139,                      // efektivitas torsi sirip (linear)
+  b_aero:1.0e-3,                    // redaman aerodinamis rotasi
+  bz_alt:0.5,                       // redaman vertikal
+  servoMax: 30*DEG,
+  // ── Realisme tambahan (fisika nyata monochopter) ──
+  cq: 0.005,                         // torsi reaksi prop: Q = cq·F_T [m] — WAJIB dilawan fin
+  Ip: 1.0e-5,                        // inersia polar prop [kg·m²] → kopling giroskopik roll↔pitch
+  servoTau: 0.04,                    // konstanta waktu servo [s] (lag orde-1, MG90-class)
+  servoRate: 10.5,                   // batas laju servo [rad/s] (~60°/0.1s)
+  wind: 0, gustX: 0, gustY: 0,       // level angin 0..1 + keadaan gust (random walk)
+  crashed: false, crashReason: '',   // wahana jatuh/terguling — kontrol mati sampai RESET
+  // ── Baterai 3S LiPo 11.1V (sesuai hardware skripsi) ──
+  battSoc: 1.0,                      // state of charge 0..1
+  battCapAh: 0.6,                    // kapasitas efektif [Ah]
+  battRint: 0.04,                    // resistansi dalam [Ω]
+  battV: 12.6, battI: 0,             // tegangan & arus (telemetri)
+  omegaEff: 1.0,                     // faktor ω_max efektif = clamp(V/11.1, .45, 1)
+  antiTorque: true,                  // kolektif fin melawan torsi reaksi prop (demo: OFF → badan berputar)
+  motorTau: 0.08,                    // konstanta waktu spin-up motor+prop [s] — ω tidak instan
+  omegaState: 0,                     // ω aktual rotor [rad/s] (keadaan dinamika motor)
+  kCP: 0.002,                        // momen aero translasi [N·m per m/s] — CP fin di bawah CG
+                                     // (≈ ½ρC_d·A·lengan; destabilisasi lemah: laju tumbuh
+                                     //  g·kCP/kekakuan_PID ≈ 0.16/s < redaman drag 0.3/s)
+  cgOff: 0,                          // offset CG dari sumbu thrust [m] (slider, default 0 = ideal)
+  propR: 0.1,                        // radius propeller [m] (utk ground effect & VRS)
+  simAcc: 0,                         // akumulator waktu integrasi (perbaikan timing)
+  // History buffers
+  histLen: 400,
+  hist: { t:[], phi:[], theta:[], psi:[], z:[], s1:[], s2:[], s3:[], s4:[], thr:[],
+          uRoll:[], uPitch:[], uYaw:[], phiRef:[], thetaRef:[], altRef:[], phiEst:[], thetaEst:[] }
+};
+
+// ── Physics step ──────────────────────────────────────────────
+// Model realistis (fisika nyata monochopter):
+//  • Efektivitas sirip ∝ ω² (prop wash): torsi fin melemah saat throttle
+//    rendah dan menguat saat tinggi — dinormalisasi pada hover DESAIN
+//    (ω_h0=1569 rad/s) sehingga di titik kerja skripsi identik dgn model linear.
+//  • Torsi reaksi propeller Q = cq·F_T yang terus memutar badan (ciri khas
+//    monochopter) — fin harus berdefleksi kolektif melawannya; PID yaw yang
+//    buruk ⇒ badan berputar liar.
+//  • Kopling giroskopik prop (h=Ip·ω): laju pitch menginduksi torsi roll dan
+//    sebaliknya — tuning buruk menghasilkan goyangan spiral tergandeng.
+//  • Angin/gust (slider) sebagai gangguan gaya+torsi acak.
+//  • Kontak tanah dengan gesekan; menyentuh tanah miring >50° atau
+//    menghantam >3.5 m/s ⇒ CRASH (kontrol mati, wajib RESET).
+//  • Penjaga numerik: laju dibatasi ±25 rad/s, NaN ⇒ CRASH (bukan layar rusak).
+const OMEGA_H0 = 1569.2;             // ω hover desain = √(m₀g/kT₀)
+function triggerCrash(reason) {
+  if (SIM.crashed) return;
+  SIM.crashed = true;
+  SIM.crashReason = reason || 'wahana jatuh';
+  ['phi','theta','psi','dphi','dtheta','dpsi','x','y','z','dx','dy','dz'].forEach(k => {
+    if (!isFinite(SIM[k])) SIM[k] = 0;
+  });
+  showPresetBanner('💥 CRASH', SIM.crashReason + ' — tekan ↺ RESET');
+}
+function physicsStep(dt) {
+  if (SIM.crashed) {
+    // tergeletak: hanya gravitasi, prop mati, sikap membeku di posisi jatuh
+    SIM.throttle = 0;
+    SIM.dz -= SIM.g*dt; SIM.z += SIM.dz*dt;
+    if (SIM.z <= 0) { SIM.z = 0; SIM.dz = 0; SIM.dx *= (1-4*dt); SIM.dy *= (1-4*dt); }
+    SIM.x += SIM.dx*dt; SIM.y += SIM.dy*dt;
+    SIM.dphi = SIM.dtheta = SIM.dpsi = 0;
+    return;
+  }
+  // ── Baterai: mekanisme fisis nyata batas kinerja vs massa ──
+  // Arus motor ∝ ω³ (daya propeller). Beban berat ⇒ ω hover tinggi ⇒ arus
+  // besar ⇒ tegangan jatuh (sag I·R + kurva discharge LiPo dgn "tebing" di
+  // ujung) ⇒ ω_max efektif turun ⇒ wahana berat kehilangan kemampuan
+  // mempertahankan ketinggian jauh lebih cepat dari yang ringan.
+  // KALIBRASI: ω_max=2046 didefinisikan pada 11.1 V (desain skripsi); selama
+  // V_eff ≥ 11.1 V faktor = 1.0 sehingga perilaku identik model BAB IV.
+  const socV = SIM.battSoc > 0.1
+    ? 10.2 + 2.4 * SIM.battSoc
+    : Math.max(7.4, 10.44 - (0.1 - SIM.battSoc) * 30);   // tebing LiPo
+  // ── Dinamika spin-up motor+rotor: ω aktual mengejar ω target (lag
+  // orde-1, τ≈80 ms) — inersia prop membuat throttle tidak instan. Efek
+  // ikutannya nyata & khas single-rotor: percepatan rotor menimbulkan
+  // YAW KICK τ = Ip·dω/dt (di luar Q steady) setiap throttle berubah cepat.
+  const omegaTgt = Math.max(0, Math.min(1, SIM.throttle)) * SIM.omega_max * SIM.omegaEff;
+  // slew dibatasi torsi motor tersedia / soft-start ESC (fisis: τ_motor =
+  // Ip·dω/dt + Q_aero terbatas) — tanpa batas ini lag orde-1 memberi
+  // dω/dt awal ~20000 rad/s² dan yaw kick yang mustahil besar
+  let domega = (omegaTgt - SIM.omegaState) / SIM.motorTau;
+  domega = Math.max(-4000, Math.min(4000, domega));
+  SIM.omegaState += domega * dt;
+  const omega = Math.max(0, SIM.omegaState);
+  SIM.battI = 9.0 * Math.pow(omega / OMEGA_H0, 3);        // ≈9 A di hover desain
+  SIM.battV = Math.max(6.5, socV - SIM.battI * SIM.battRint);
+  SIM.battSoc = Math.max(0, SIM.battSoc - SIM.battI * dt / (3600 * SIM.battCapAh));
+  SIM.omegaEff = Math.max(0.45, Math.min(1.0, SIM.battV / 11.1));
+  // Thrust dasar: F_T = kT·ρ(h)/ρ₀·ω²  (kerapatan udara ∝ e^(−h/8500))
+  let FT = SIM.kT * Math.exp(-SIM.z / 8500) * omega * omega;
+  // ── GROUND EFFECT (Cheeseman–Bennett): dekat tanah downwash tertahan →
+  // thrust menguat 1/(1−(R/4h)²). Rotor ±0.12 m di atas kaki. Efek nyata
+  // saat lepas landas/mendarat ("mengambang"); ≈1.000 di hover 1.5 m —
+  // titik kerja desain tak berubah.
+  const hRot = SIM.z + 0.12;
+  const igeF = Math.min(1.15, 1 / (1 - Math.min(0.5,
+                 Math.pow(SIM.propR / (4 * Math.max(hRot, 0.08)), 2))));
+  // ── VORTEX RING STATE: turun cepat ke dalam downwash sendiri → thrust
+  // rontok. Kecepatan induksi vi = √(T/(2ρA)); penalti mulai saat laju
+  // turun > 0.35·vi (teori momentum rotor).
+  const vi = Math.sqrt(Math.max(FT, 0.2) / (2 * 1.225 * Math.PI * SIM.propR * SIM.propR));
+  let vrsF = 1;
+  if (SIM.dz < -0.35 * vi) {
+    vrsF = 1 - 0.35 * Math.min(1, (-SIM.dz / vi - 0.35) / 0.5);
+  }
+  FT *= igeF * vrsF;
+
+  // efektivitas fin ∝ prop wash (ω²) — =1 tepat di hover desain
+  const wash = Math.min(3, (omega/OMEGA_H0)*(omega/OMEGA_H0));
+
+  // gust angin: random-walk lambat (gaya) + torsi acak cepat
+  if (SIM.wind > 0) {
+    SIM.gustX = Math.max(-1, Math.min(1, SIM.gustX*(1-0.6*dt) + (Math.random()-0.5)*2.4*dt));
+    SIM.gustY = Math.max(-1, Math.min(1, SIM.gustY*(1-0.6*dt) + (Math.random()-0.5)*2.4*dt));
+  } else { SIM.gustX = 0; SIM.gustY = 0; }
+  // torsi gangguan angin: komponen berkorelasi (gust) + white noise kecil
+  const tauWx = SIM.wind * (0.030*SIM.gustX + 0.010*(Math.random()-0.5)*2);
+  const tauWy = SIM.wind * (0.030*SIM.gustY + 0.010*(Math.random()-0.5)*2);
+  const tauWz = SIM.wind * 0.008*(Math.random()-0.5)*2;
+
+  // ── MOMEN AERO TRANSLASI: pusat tekanan (CP) fin+badan bawah berada DI
+  // BAWAH CG. Saat wahana bergerak (atau ditiup angin), gaya hambat bekerja
+  // di CP → momen yang MENAMBAH kemiringan searah gerak (destabilisasi
+  // lemah) — PID sikap harus terus melawannya saat jelajah waypoint.
+  const vAirX = SIM.dx - SIM.wind * 1.5 * SIM.gustX;   // kecepatan relatif udara
+  const vAirY = SIM.dy - SIM.wind * 1.5 * SIM.gustY;
+  const tauCPp =  SIM.kCP * vAirX;                     // momen pitch (destab.)
+  const tauCPr = -SIM.kCP * vAirY;                     // momen roll (simetris)
+  // ── OFFSET CG: bila CG tak tepat di sumbu thrust (rakitan nyata), thrust
+  // menghasilkan momen konstan τ = F_T·d — inilah alasan PID butuh integral.
+  const tauCG = FT * SIM.cgOff;
+  // torsi fin (dgn wash) + reaksi prop + giroskopik + redaman + angin
+  const Qprop = SIM.cq * FT;                       // torsi reaksi propeller (steady)
+  const h     = SIM.Ip * omega;                    // momentum sudut prop
+  const tau_roll  = SIM.Keff*wash*(SIM.s1 - SIM.s3)               - SIM.b_aero*SIM.dphi   + tauWx + tauCPr;
+  const tau_pitch = SIM.Keff*wash*(SIM.s2 - SIM.s4)               - SIM.b_aero*SIM.dtheta + tauWy + tauCPp + tauCG;
+  const tau_yaw   = SIM.Keff*wash*0.5*(SIM.s1+SIM.s2+SIM.s3+SIM.s4) - Qprop - SIM.Ip*domega - SIM.b_aero*SIM.dpsi + tauWz;
+
+  // Persamaan Euler + suku giroskopik prop (h×ω_body)
+  const ddphi   = ((SIM.Iyy-SIM.Izz)*SIM.dtheta*SIM.dpsi + h*SIM.dtheta + tau_roll)  / SIM.Ixx;
+  const ddtheta = ((SIM.Izz-SIM.Ixx)*SIM.dphi  *SIM.dpsi - h*SIM.dphi   + tau_pitch) / SIM.Iyy;
+  const ddpsi   = ((SIM.Ixx-SIM.Iyy)*SIM.dphi  *SIM.dtheta + tau_yaw)   / SIM.Izz;
+
+  // Translasi
+  const cosP = Math.cos(SIM.phi), cosT = Math.cos(SIM.theta);
+  const sinP = Math.sin(SIM.phi), sinT = Math.sin(SIM.theta);
+  const ddz = -SIM.g + cosP * cosT * FT / SIM.m - SIM.bz_alt*SIM.dz/SIM.m;
+  const ddx =  sinT * cosP * FT / SIM.m + SIM.wind*1.2*SIM.gustX/SIM.m;
+  const ddy = -sinP * cosT * FT / SIM.m + SIM.wind*1.2*SIM.gustY/SIM.m;
+
+  // Integrasi + batas laju rotasi (penjaga numerik)
+  const RLIM = 25;
+  SIM.dphi   = Math.max(-RLIM, Math.min(RLIM, SIM.dphi   + ddphi  *dt));
+  SIM.dtheta = Math.max(-RLIM, Math.min(RLIM, SIM.dtheta + ddtheta*dt));
+  SIM.dpsi   = Math.max(-RLIM, Math.min(RLIM, SIM.dpsi   + ddpsi  *dt));
+  SIM.phi    += SIM.dphi   * dt;
+  SIM.theta  += SIM.dtheta * dt;
+  SIM.psi    += SIM.dpsi   * dt;
+  if (SIM.psi >  Math.PI) SIM.psi -= 2*Math.PI;
+  if (SIM.psi < -Math.PI) SIM.psi += 2*Math.PI;
+
+  SIM.dz += ddz * dt;
+  const dzImpact = SIM.dz;                         // simpan utk deteksi hantaman
+  SIM.z  += SIM.dz * dt;
+  if (SIM.z < 0) { SIM.z = 0; SIM.dz = Math.max(0, SIM.dz); }
+
+  const dragXY = 0.3;   // drag lateral ringan; pengereman utama via guidance
+  SIM.dx += ddx * dt;  SIM.dx *= (1 - dragXY * dt);
+  SIM.dy += ddy * dt;  SIM.dy *= (1 - dragXY * dt);
+  SIM.x  += SIM.dx * dt;
+  SIM.y  += SIM.dy * dt;
+
+  // ── Kontak tanah: gesekan skid + deteksi CRASH ──
+  if (SIM.z <= 0.005) {
+    if (dzImpact < -3.5) { triggerCrash('menghantam tanah ' + (-dzImpact).toFixed(1) + ' m/s'); return; }
+    if (Math.abs(SIM.phi) > 50*DEG || Math.abs(SIM.theta) > 50*DEG) {
+      triggerCrash('terguling saat menyentuh tanah'); return;
+    }
+    // gesekan kaki: redam rotasi & tarik sikap ke tegak selama di darat.
+    // Saat masih BERTUMPU (F_T < m·g) gesekan statis kaki jauh melebihi
+    // torsi yaw mana pun (μ·m·g·r ≈ 0.18 N·m > Q + kick) → yaw terkunci;
+    // gesekan melemah tepat ketika thrust menyamai berat (lepas landas).
+    const wow = FT < SIM.m * SIM.g;            // weight-on-skids
+    const f  = Math.max(0, 1 - 6*dt);
+    const fy = Math.max(0, 1 - (wow ? 35 : 6)*dt);
+    SIM.dphi *= f; SIM.dtheta *= f; SIM.dpsi *= fy;
+    if (wow && Math.abs(SIM.dpsi) < 0.25) SIM.dpsi = 0;
+    SIM.phi  *= Math.max(0, 1 - 2*dt);
+    SIM.theta*= Math.max(0, 1 - 2*dt);
+    SIM.dx *= (1-3*dt); SIM.dy *= (1-3*dt);
+  }
+  // ── Penjaga NaN: parameter acak ekstrem tak boleh merusak render ──
+  if (!isFinite(SIM.phi + SIM.theta + SIM.psi + SIM.z + SIM.dphi + SIM.dtheta)) {
+    triggerCrash('divergensi numerik (parameter ekstrem)');
+  }
+}
+
+// ── Kalman Filter ─────────────────────────────────────────────
+function kalmanUpdate(gyroRate, accelAngle, xK, PK, dt) {
+  const Q = [[0.001,0],[0,0.003]];
+  const R = 0.03;
+  const A = [[1,dt],[0,1]];
+  const xp = [A[0][0]*xK[0]+A[0][1]*xK[1], A[1][0]*xK[0]+A[1][1]*xK[1]+dt*gyroRate];
+  const Pp = [
+    [A[0][0]*(PK[0][0]*A[0][0]+PK[1][0]*A[0][1])+A[0][1]*(PK[0][1]*A[0][0]+PK[1][1]*A[0][1])+Q[0][0],
+     A[0][0]*(PK[0][0]*A[1][0]+PK[1][0]*A[1][1])+A[0][1]*(PK[0][1]*A[1][0]+PK[1][1]*A[1][1])],
+    [A[1][0]*(PK[0][0]*A[0][0]+PK[1][0]*A[0][1])+A[1][1]*(PK[0][1]*A[0][0]+PK[1][1]*A[0][1]),
+     A[1][0]*(PK[0][0]*A[1][0]+PK[1][0]*A[1][1])+A[1][1]*(PK[0][1]*A[1][0]+PK[1][1]*A[1][1])+Q[1][1]]
+  ];
+  const S = Pp[0][0] + R;
+  const K = [Pp[0][0]/S, Pp[1][0]/S];
+  const innov = accelAngle - xp[0];
+  const xNew = [xp[0]+K[0]*innov, xp[1]+K[1]*innov];
+  const PNew = [[(1-K[0])*Pp[0][0], (1-K[0])*Pp[0][1]],[-K[1]*Pp[0][0]+Pp[1][0], -K[1]*Pp[0][1]+Pp[1][1]]];
+  return { x: xNew, P: PNew, K: K[0] };
+}
+
+// ── PID ───────────────────────────────────────────────────────
+function pidStep(err, prevErr, integral, Kp, Ki, Kd, dt, outMax) {
+  const deriv  = (err - prevErr) / dt;
+  // Anti-windup kondisional: hanya akumulasi integral bila keluaran
+  // belum tersaturasi (cegah penumpukan saat throttle mentok).
+  const uTest  = Kp*err + Ki*integral + Kd*deriv;
+  let newInt   = integral;
+  if (Math.abs(uTest) < outMax) {
+    newInt = Math.max(-outMax/(Ki||1e6), Math.min(outMax/(Ki||1e6), integral + err*dt));
+  }
+  let u = Kp*err + Ki*newInt + Kd*deriv;
+  u = Math.max(-outMax, Math.min(outMax, u));
+  return { u, integral: newInt };
+}
+
+// ── Servo mix ─────────────────────────────────────────────────
+// Servo mixer domain-torsi (Persamaan mixing_matrix_numerik, BAB III):
+// - tauRoll/tauPitch/tauYaw: keluaran PID dalam N.m (BUKAN sudut servo langsung)
+// - gain scheduling w(omega) = (omega/omega_hover)^2, dibatasi bawah 0.05
+//   (Subbab "Batas Praktis Gain Scheduling", BAB II/III)
+// - deltaFF: feedforward anti-torsi kolektif, dihitung live dari cq,m,g,Keff
+//   (Persamaan feedforward_hover, BAB III) — konsisten dgn Ky_hover = kappa_y*Ks_hover
+//   KECUALI SIM_TRIM.yawFF diisi manual lewat menu Trim & Kalibrasi RC (override).
+// - nBias: bias netral fisik per-servo (derajat, dari menu Trim & Kalibrasi RC),
+//   ditambahkan setelah mixing, sebelum saturasi — meniru offset netral fisik
+//   riil (servo tidak pernah persis 90° akibat toleransi pemasangan mekanis).
+function servoMix(tauRoll, tauPitch, tauYaw, omega, antiTorqueOn, sMax) {
+  const Ks = SIM.Keff;                       // K_s,hover
+  const Ky = 0.5 * SIM.Keff;                 // K_y,hover = kappa_y * K_s,hover, kappa_y=0.5
+  const w  = Math.max(0.05, (omega / OMEGA_H0) * (omega / OMEGA_H0));
+  const dPhi   = tauRoll  / (2 * Ks * w);
+  const dTheta = tauPitch / (2 * Ks * w);
+  const dYaw   = tauYaw   / (4 * Ky * w);
+  const dFF    = antiTorqueOn
+    ? (SIM_TRIM.yawFF !== null ? SIM_TRIM.yawFF : (SIM.cq * SIM.m * SIM.g) / (4 * Ky))
+    : 0;
+  const nBias = [
+    (SIM_TRIM.s1 - 90) * DEG, (SIM_TRIM.s2 - 90) * DEG,
+    (SIM_TRIM.s3 - 90) * DEG, (SIM_TRIM.s4 - 90) * DEG,
+  ];
+  const c = (v) => Math.max(-sMax, Math.min(sMax, v));
+  return {
+    s1: c(dPhi + dYaw + dFF + nBias[0]),  s2: c(dTheta + dYaw + dFF + nBias[1]),
+    s3: c(-dPhi + dYaw + dFF + nBias[2]), s4: c(-dTheta + dYaw + dFF + nBias[3]),
+  };
+}
+
+// ── Control step ─────────────────────────────────────────────
+// Dinamika servo nyata: aktuator TIDAK instan — lag orde-1 (servoTau) +
+// batas laju (servoRate). Inilah yang membuat gain PID berlebihan benar-benar
+// berosilasi/tak stabil seperti di wahana fisik (fase hilang di aktuator).
+function servoDynamics(cur, cmd, dt) {
+  const a = dt / (SIM.servoTau + dt);              // lag orde-1
+  let target = cur + (cmd - cur) * a;
+  const maxStep = SIM.servoRate * dt;              // batas laju gerak servo
+  let d = target - cur;
+  if (d >  maxStep) d =  maxStep;
+  if (d < -maxStep) d = -maxStep;
+  const out = cur + d;
+  return Math.max(-SIM.servoMax, Math.min(SIM.servoMax, out));
+}
+function controlStep(dt) {
+  // Deteksi link RC terputus (>0.5s tanpa pesan {cmd:"rc"} baru) — dipakai
+  // fitur "Uji Failsafe" di RC: auto-level (referensi sikap -> 0) & throttle
+  // dipaksa 0, meniru perilaku failsafe firmware sesungguhnya.
+  RC_BRIDGE.rcLost = (rcLastMsgTs !== null) && (performance.now() - rcLastMsgTs > 500);
+  if (RC_BRIDGE.rcLost) { SIM.rollRef = 0; SIM.pitchRef = 0; SIM.yawRef = 0; }
+
+  if (SIM.crashed) {                               // kontrol mati saat crash
+    SIM.throttle = 0;
+    const Hc = SIM.hist;
+    if (Hc.t.length > SIM.histLen) Object.keys(Hc).forEach(k => Hc[k].shift());
+    Hc.t.push(SIM.t);
+    Hc.phi.push(SIM.phi*RAD); Hc.theta.push(SIM.theta*RAD);
+    Hc.psi.push(SIM.psi*RAD); Hc.z.push(SIM.z);
+    Hc.s1.push(SIM.s1*RAD); Hc.s2.push(SIM.s2*RAD);
+    Hc.s3.push(SIM.s3*RAD); Hc.s4.push(SIM.s4*RAD);
+    Hc.thr.push(0); Hc.uRoll.push(0); Hc.uPitch.push(0); Hc.uYaw.push(0);
+    Hc.phiRef.push(0); Hc.thetaRef.push(0); Hc.altRef.push(SIM.altRef);
+    Hc.phiEst.push(SIM.xK_roll[0]*RAD); Hc.thetaEst.push(SIM.xK_pitch[0]*RAD);
+    return;
+  }
+  const noise = SIM.noiseLevel;
+  // Vibrasi propeller mengotori accelerometer ∝ ω² (gaya sentrifugal massa
+  // tak seimbang). Skala = 0.3+0.7·(ω/ω_h0)² — tepat 1.0 di hover desain
+  // sehingga R Kalman rancangan tetap valid di titik kerja; throttle tinggi
+  // → estimasi sikap lebih berisik (nyata di hardware).
+  const sVib = 0.3 + 0.7 * Math.pow(SIM.omegaState / OMEGA_H0, 2);
+  const gyroNoiseSd  = noise * 0.008;
+  const accelNoiseSd = noise * 0.015 * sVib;
+  const nG = () => (Math.random()-0.5) * 2.0 * gyroNoiseSd;
+  const nA = () => (Math.random()-0.5) * 2.0 * accelNoiseSd;
+
+  // [A] IMU
+  const gyroX = SIM.dphi   + nG();
+  const gyroY = SIM.dtheta + nG();
+  const accRoll  = SIM.phi   + nA();
+  const accPitch = SIM.theta + nA();
+
+  // [B] Kalman
+  const rK = kalmanUpdate(gyroX, accRoll,  SIM.xK_roll,  SIM.PK_roll,  dt);
+  const pK = kalmanUpdate(gyroY, accPitch, SIM.xK_pitch, SIM.PK_pitch, dt);
+  SIM.xK_roll  = rK.x; SIM.PK_roll  = rK.P; SIM.kGainRoll  = rK.K;
+  SIM.xK_pitch = pK.x; SIM.PK_pitch = pK.P; SIM.kGainPitch = pK.K;
+  const phiEst   = rK.x[0] - SIM_TRIM.rollTrim  * DEG;
+  const thetaEst = pK.x[0] - SIM_TRIM.pitchTrim * DEG;
+
+  // [C] RC → setpoint (joystick -1..+1 → rad)
+  const rollRef_rad  = SIM.rollRef  * SIM.servoMax;
+  const pitchRef_rad = SIM.pitchRef * SIM.servoMax;
+  const yawRef_rps   = SIM.yawRef   * 1.0;
+
+  // [D] PID
+  const errRoll  = rollRef_rad  - phiEst;
+  const errPitch = pitchRef_rad - thetaEst;
+  const errYaw   = yawRef_rps   - SIM.dpsi;
+  // [D] Setpoint ramp altitude — pendekatan halus (cegah overshoot)
+  // Wahana nyata naik bertahap, bukan lompat ke setpoint seketika.
+  // KECUALI saat SCRIPTED.active (mode validasi lintas platform): ramp ini
+  // TIDAK ADA padanannya di simulasi_full_system.m/.py (alt_ref di sana
+  // melompat instan, kehalusan responsnya murni dari dinamika PID+plant).
+  // Kalau ramp 0.5 m/s ini tetap dipakai, jendela fase pendek (mis. Takeoff
+  // 2.0-5.0s, Descent Tahap 2 24.0-25.5s) akan terpotong sebelum ramp-nya
+  // sendiri selesai — errornya jadi artefak ramp, bukan perbedaan kontrol.
+  if (SIM.altRefSmooth === undefined) SIM.altRefSmooth = SIM.z;
+  const altRampRate = SCRIPTED.active ? 1000 : 0.5; // m/s — instan saat validasi
+  if (SIM.altRefSmooth < SIM.altRef) {
+    SIM.altRefSmooth = Math.min(SIM.altRef, SIM.altRefSmooth + altRampRate*dt);
+  } else {
+    SIM.altRefSmooth = Math.max(SIM.altRef, SIM.altRefSmooth - altRampRate*dt);
+  }
+  const errAlt   = SIM.altRefSmooth - SIM.z;
+  // Anti-windup outMax: batas internal PID (N.m untuk roll/pitch/yaw, N untuk
+  // altitude). Saturasi FISIK sebenarnya terjadi belakangan di servoMix (+-delta_max)
+  // dan di clamp throttle, konsisten dgn arsitektur dua-lapis BAB III/Subbab 3.3.5.3.
+  const rP = pidStep(errRoll,  SIM.prevErrRoll,  SIM.intRoll,  SIM.Kp,     SIM.Ki,     SIM.Kd,     dt, 5.0);
+  const pP = pidStep(errPitch, SIM.prevErrPitch, SIM.intPitch, SIM.Kp,     SIM.Ki,     SIM.Kd,     dt, 5.0);
+  const yP = pidStep(errYaw,   SIM.prevErrYaw,   SIM.intYaw,   SIM.Kp_yaw, SIM.Ki_yaw, SIM.Kd_yaw, dt, 5.0);
+  const aP = pidStep(errAlt,   SIM.prevErrAlt,   SIM.intAlt,   SIM.Kp_alt, SIM.Ki_alt, SIM.Kd_alt, dt, 5.0);
+  SIM.intRoll  = rP.integral; SIM.prevErrRoll  = errRoll;
+  SIM.intPitch = pP.integral; SIM.prevErrPitch = errPitch;
+  SIM.intYaw   = yP.integral; SIM.prevErrYaw   = errYaw;
+  SIM.intAlt   = aP.integral; SIM.prevErrAlt   = errAlt;
+  // disimpan untuk telemetri RC_BRIDGE (dashboard "PID OUTPUT")
+  SIM.lastPidRoll = rP.u; SIM.lastPidPitch = pP.u; SIM.lastPidYaw = yP.u; SIM.lastPidAlt = aP.u;
+
+  // [E] Servo mixer → perintah; posisi aktual melalui dinamika servo
+  //     (lag + rate limit — aktuator nyata tidak instan)
+  // DEMO ANTI-TORSI: bila dimatikan, fin TIDAK diberi komponen kolektif reaktif
+  // MAUPUN feedforward — torsi reaksi propeller tak terlawan dan badan berputar
+  // makin cepat (persis masalah dasar single-rotor, setara "Kondisi A" Hipotesis 1,
+  // Subbab 3.3.6.3). Integral yaw di-nol-kan selama OFF agar saat diaktifkan
+  // kembali PID menangkap putaran dengan bersih.
+  const uYawApplied = SIM.antiTorque ? yP.u : 0;
+  if (!SIM.antiTorque) { SIM.intYaw = 0; }
+  const omegaNow = Math.max(0, SIM.omegaState);
+  const mix = servoMix(rP.u, pP.u, uYawApplied, omegaNow, SIM.antiTorque, SIM.servoMax);
+  SIM.s1 = servoDynamics(SIM.s1, mix.s1, dt);
+  SIM.s2 = servoDynamics(SIM.s2, mix.s2, dt);
+  SIM.s3 = servoDynamics(SIM.s3, mix.s3, dt);
+  SIM.s4 = servoDynamics(SIM.s4, mix.s4, dt);
+
+  // [F] Throttle — Force-to-Throttle Conversion (Persamaan konversi_throttle,
+  // BAB III): delta_throttle = ΔF_T / (2·kT·omega_hover·omega_max)
+  const omegaHoverNow = Math.sqrt(SIM.m * SIM.g / SIM.kT);
+  const deltaThrottle = aP.u / (2 * SIM.kT * omegaHoverNow * SIM.omega_max);
+  SIM.throttle = RC_BRIDGE.rcLost
+    ? 0
+    : Math.max(0.05, Math.min(0.99, SIM.throttleBase + deltaThrottle));
+
+  // [G] History
+  const H = SIM.hist;
+  if (H.t.length > SIM.histLen) Object.keys(H).forEach(k => H[k].shift());
+  H.t.push(SIM.t);
+  H.phi.push(SIM.phi*RAD);   H.theta.push(SIM.theta*RAD);
+  H.psi.push(SIM.psi*RAD);   H.z.push(SIM.z);
+  H.s1.push(SIM.s1*RAD);     H.s2.push(SIM.s2*RAD);
+  H.s3.push(SIM.s3*RAD);     H.s4.push(SIM.s4*RAD);
+  H.thr.push(SIM.throttle*100);
+  H.uRoll.push(rP.u);        H.uPitch.push(pP.u);       H.uYaw.push(uYawApplied);  // N.m (bukan derajat)
+  H.phiRef.push(rollRef_rad*RAD);  H.thetaRef.push(pitchRef_rad*RAD);
+  H.altRef.push(SIM.altRef);
+  H.phiEst.push(phiEst*RAD); H.thetaEst.push(thetaEst*RAD);
+}
+// ════════════════════════════════════════════════════════════════
+//  THREE.JS 3D SCENE
+// ════════════════════════════════════════════════════════════════
+let renderer, scene, camera, craft, propeller, targetMarker, trailPoints = [], trailLine;
+let servoFinMeshes = [];
+let frameCount = 0, lastFPSTime = performance.now();
+let camYaw = 0.6, camPitch = 0.5, camDist = 6;
+let isDragging = false, lastMX = 0, lastMY = 0;
+let altitudeIndicator;
+
+function initThree() {
+  const wrap = document.getElementById('canvas-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true, alpha: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(W, H);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x0a0f1a, 1);
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0a0f1a, 18, 55);
+  camera = new THREE.PerspectiveCamera(55, W/H, 0.05, 200);
+  camera.position.set(4, 3, 4);
+  camera.lookAt(0, 2, 0);
+  scene.add(new THREE.AmbientLight(0x6b7a90, 1.4));
+  const dir = new THREE.DirectionalLight(0xffffff, 2.2);
+  dir.position.set(6, 14, 6); dir.castShadow = true;
+  dir.shadow.mapSize.width = 1024; dir.shadow.mapSize.height = 1024;
+  scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(0x3dd6f5, 0.5);
+  dir2.position.set(-5, 4, -3); scene.add(dir2);
+  const pt1 = new THREE.PointLight(0x3dd6f5, 1.2, 9); pt1.position.set(0, 5, 0); scene.add(pt1);
+  const pt2 = new THREE.PointLight(0xff9e3d, 0.7, 6); pt2.position.set(2, 1, 2); scene.add(pt2);
+  const sceneGrid = new THREE.GridHelper(30, 30, 0x2a3850, 0x16202e);
+  sceneGrid.name = 'sceneGrid'; scene.add(sceneGrid);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30),
+    new THREE.MeshStandardMaterial({ color: 0x0d141e, roughness: 0.95 }));
+  ground.name = 'sceneGround';
+  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+  craft = new THREE.Group();
+  buildCraft(craft);
+  craft.position.set(0, 0, 0); scene.add(craft);
+  const tMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+  targetMarker = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.25, 16), tMat);
+  targetMarker.rotation.x = -Math.PI/2; scene.add(targetMarker);
+  const tLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,5,0)]),
+    new THREE.LineBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.3 }));
+  targetMarker.add(tLine);
+  trailLine = new THREE.Line(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({ color: 0x3dd6f5, transparent: true, opacity: 0.6 }));
+  scene.add(trailLine);
+  altitudeIndicator = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,-10,0)]),
+    new THREE.LineBasicMaterial({ color: 0x3dd6f5, transparent: true, opacity: 0.25 }));
+  craft.add(altitudeIndicator);
+  const starGeo = new THREE.BufferGeometry();
+  const starPos = [];
+  for (let i = 0; i < 200; i++) starPos.push((Math.random()-0.5)*100, Math.random()*30+10, (Math.random()-0.5)*100);
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x3a4a60, size: 0.07 }));
+  stars.name = 'sceneStars'; scene.add(stars);
+  const cv = document.getElementById('three-canvas');
+  cv.addEventListener('mousedown', e => { isDragging=true; lastMX=e.clientX; lastMY=e.clientY; });
+  cv.addEventListener('mouseup',   () => isDragging=false);
+  cv.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    camYaw   += (e.clientX-lastMX)*0.005;
+    camPitch += (e.clientY-lastMY)*0.005;
+    camPitch  = Math.max(0.1, Math.min(1.4, camPitch));
+    lastMX=e.clientX; lastMY=e.clientY;
+  });
+  cv.addEventListener('wheel', e => { camDist = Math.max(2, Math.min(20, camDist + e.deltaY*0.01)); });
+  window.addEventListener('resize', () => {
+    const W2 = wrap.clientWidth, H2 = wrap.clientHeight;
+    renderer.setSize(W2, H2); camera.aspect = W2/H2; camera.updateProjectionMatrix();
+  });
+}
+
+function buildCraft(group) {
+  // ════════════════════════════════════════════════════════════
+  //  MONOCHOPTER — desain roket profesional, body menyatu (no gap)
+  //  Kolom kontinu: nose(ogive) → body → controller → kerangka
+  // ════════════════════════════════════════════════════════════
+  const R  = 0.105;       // radius body
+  const NH = 0.34;        // tinggi nose ogive
+  const CH = 0.20;        // tinggi seksi controller
+  const BH = 0.60;        // tinggi body utama
+  // Susun dari bawah: controller [0..CH], body [CH..CH+BH], nose di atas
+  const yCtrlTop  = CH;
+  const yBodyTop  = CH + BH;
+  const motorR = 0.013, motorH = 0.016;
+
+  // ── PALET PROFESIONAL ──
+  const COL_BODY   = 0xeef2f7;  // putih-perak badan
+  const COL_BODY2  = 0xc3ccd8;  // abu bawah (gradien via material berbeda)
+  const COL_NOSE   = 0x1e2a44;  // biru gelap nose (kontras elegan)
+  const COL_NOSE_T = 0x2d8fd0;  // tip nose aksen sian
+  const COL_BAND   = 0x3a4658;  // pita pemisah gelap
+  const COL_EDGE   = 0x8896a8;  // tepi metalik
+  const COL_DARK   = 0x2b2f36;
+  const COL_FRAME  = 0x2b3340;  // kerangka gelap
+  const COL_FIN_A  = 0xe23b2e;  // sirip merah
+  const COL_FIN_B  = 0xb91c1c;  // sirip merah gelap (sisi)
+  const COL_ACCENT = 0x3dd6f5;  // aksen sian
+
+  const m = (color, roughness=0.5, metalness=0.45, opts={}) =>
+    new THREE.MeshStandardMaterial({ color, roughness, metalness, ...opts });
+  const mEmit = (color, emissive, emi=0.6) =>
+    new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.4, emissive, emissiveIntensity: emi });
+
+  // ── kolom utama (semua dalam satu group, posisi kontinu) ──
+  const bodyCol = new THREE.Group();
+  bodyCol.position.y = -(CH + BH*0.5);   // pusatkan agar craft origin ~tengah massa
+  group.add(bodyCol);
+
+  // NOSE OGIVE (lengkung halus, bukan kerucut tajam) via LatheGeometry
+  const ogivePts = [];
+  const segN = 16;
+  for (let i = 0; i <= segN; i++) {
+    const t = i/segN;                       // 0 di pangkal, 1 di ujung
+    const y = t * NH;
+    // profil ogive: radius mengecil mengikuti lengkung sirkular
+    const r = R * Math.sqrt(Math.max(0, 1 - t*t)) * (1 - 0.04*t);
+    ogivePts.push(new THREE.Vector2(Math.max(0.001, r), y));
+  }
+  const noseGeo = new THREE.LatheGeometry(ogivePts, 48);
+  const nose = new THREE.Mesh(noseGeo, m(COL_NOSE, 0.45, 0.55));
+  nose.position.y = yBodyTop; nose.castShadow = true; bodyCol.add(nose);
+  // tip aksen sian
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.01, 12, 12), mEmit(COL_NOSE_T, COL_NOSE_T, 0.5));
+  tip.position.y = yBodyTop + NH; bodyCol.add(tip);
+
+  // BODY UTAMA (satu silinder menyatu — NO GAP)
+  const bodyTube = new THREE.Mesh(new THREE.CylinderGeometry(R, R, BH, 48), m(COL_BODY, 0.5, 0.35));
+  bodyTube.position.y = CH + BH/2; bodyTube.castShadow = true; bodyCol.add(bodyTube);
+
+  // strip aksen vertikal (estetika — garis sian tipis di body)
+  for (let i = 0; i < 2; i++) {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.004, BH*0.92, 0.002),
+      mEmit(COL_ACCENT, COL_ACCENT, 0.35));
+    const a = i*Math.PI;
+    strip.position.set(Math.cos(a)*R*1.001, CH+BH/2, Math.sin(a)*R*1.001);
+    strip.lookAt(0, CH+BH/2, 0); bodyCol.add(strip);
+  }
+
+  // pita pemisah (3 cincin) + baut — semua menempel mulus di body
+  const bands = [CH + BH*0.82, CH + BH*0.5, CH + BH*0.18];
+  bands.forEach((yy, bi) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R+0.003, 0.0085, 10, 48), m(COL_BAND, 0.4, 0.6));
+    ring.rotation.x = Math.PI/2; ring.position.y = yy; bodyCol.add(ring);
+    if (bi < 2) {  // baris baut di dua pita atas
+      for (let i = 0; i < 10; i++) {
+        const a = (i/10)*Math.PI*2;
+        const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 8), m(COL_DARK, 0.4, 0.6));
+        bolt.position.set(Math.cos(a)*(R+0.002), yy+0.028, Math.sin(a)*(R+0.002)); bodyCol.add(bolt);
+      }
+    }
+  });
+
+  // CONTROLLER (menyatu di bawah body — radius sama, no gap)
+  const ctrlTube = new THREE.Mesh(new THREE.CylinderGeometry(R, R*0.97, CH, 48), m(COL_BODY2, 0.45, 0.4));
+  ctrlTube.position.y = CH/2; ctrlTube.castShadow = true; bodyCol.add(ctrlTube);
+  // cincin penutup bawah controller
+  const ctrlCap = new THREE.Mesh(new THREE.CylinderGeometry(R*0.97, R*0.85, 0.02, 48), m(COL_BAND, 0.4, 0.6));
+  ctrlCap.position.y = 0.005; bodyCol.add(ctrlCap);
+  // panel aksen sian di controller (indikator "avionics")
+  for (let i = 0; i < 4; i++) {
+    const a = (i/4)*Math.PI*2 + Math.PI/4;
+    const led = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.003),
+      mEmit([COL_ACCENT,0x4ade80,0xff9e3d,0xfacc15][i], [COL_ACCENT,0x4ade80,0xff9e3d,0xfacc15][i], 0.7));
+    led.position.set(Math.cos(a)*R*1.002, CH*0.5, Math.sin(a)*R*1.002);
+    led.lookAt(0, CH*0.5, 0); bodyCol.add(led);
+  }
+
+  // ── KERANGKA KAKI (di bawah, koordinat relatif craft origin) ──
+  const frameTop = -(CH + BH*0.5) + 0;      // = pangkal controller di koordinat group
+  // hitung posisi absolut: bodyCol.y + 0 (dasar controller)
+  const yBase = bodyCol.position.y;          // dasar controller pada craft
+  const fTop = yBase;                         // dasar controller
+  const fBot = fTop - 0.24;
+  const frameR = R * 1.08;
+  for (let i = 0; i < 4; i++) {
+    const a = (i/4)*Math.PI*2 + Math.PI/4;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(Math.cos(a)*R*0.55, fTop, Math.sin(a)*R*0.55),
+      new THREE.Vector3(Math.cos(a)*frameR, fTop-0.12, Math.sin(a)*frameR),
+      new THREE.Vector3(Math.cos(a)*R*0.6, fBot, Math.sin(a)*R*0.6)
+    );
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.0055, 8, false), m(COL_FRAME, 0.45, 0.6));
+    tube.castShadow = true; group.add(tube);
+  }
+  const baseRing = new THREE.Mesh(new THREE.TorusGeometry(R*0.62, 0.006, 8, 32), m(COL_FRAME, 0.45, 0.6));
+  baseRing.rotation.x = Math.PI/2; baseRing.position.y = fBot; group.add(baseRing);
+  for (let i = 0; i < 2; i++) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(R*1.7, 0.007, 0.007), m(COL_FRAME, 0.45, 0.6));
+    bar.position.y = fBot - 0.004; bar.rotation.y = i*Math.PI/2; group.add(bar);
+  }
+
+  // ── MOTOR + PROPELLER ──
+  const motorMount = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.045, 12), m(0x14171c, 0.4, 0.65));
+  motorMount.position.y = fTop - 0.045; group.add(motorMount);
+  const motorBody = new THREE.Mesh(new THREE.CylinderGeometry(motorR*1.5, motorR*1.6, motorH*1.3, 20), m(0x14171c, 0.35, 0.75));
+  motorBody.position.y = fTop - 0.095; group.add(motorBody);
+
+  propeller = new THREE.Group();
+  propeller.position.y = fTop - 0.125; group.add(propeller);
+  for (let i = 0; i < 2; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.008, 0.042), m(0x20242b, 0.35, 0.55));
+    blade.rotation.y = i * Math.PI/2; blade.castShadow = true; propeller.add(blade);
+  }
+  propeller.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.019, 0.02, 10), mEmit(COL_ACCENT, 0x0a2a35, 0.4)));
+
+  // ── 4 SIRIP SERVO (merah, di bawah propeller; defleksi DIAGONAL) ──
+  // finRoot diam (orientasi radial). Defleksi = pitch sirip (sumbu memanjang),
+  // memuntir bilah secara diagonal seperti permukaan kendali sungguhan.
+  servoFinMeshes = [];
+  const finAngles = [0, Math.PI/2, Math.PI, -Math.PI/2];
+  const finY = fBot + 0.01;
+
+  finAngles.forEach((ang, i) => {
+    const finRoot = new THREE.Group();
+    finRoot.position.set(0, finY, 0);
+    finRoot.rotation.y = -ang;             // orientasi radial TETAP (tidak diubah defleksi)
+    group.add(finRoot);
+
+    // pivot di dalam: sumbu putar sepanjang arah radial (X lokal) → defleksi diagonal
+    const pivot = new THREE.Group();
+    finRoot.add(pivot);
+    finRoot.userData.pivot = pivot;
+
+    const shape = new THREE.Shape();
+    shape.moveTo(R*0.55, -0.05);
+    shape.lineTo(R*0.55,  0.05);
+    shape.lineTo(R*1.5,   0.05);
+    shape.lineTo(R*1.72,  0.0);
+    shape.lineTo(R*1.5,  -0.05);
+    shape.closePath();
+    const finGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.013, bevelEnabled: true,
+      bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1 });
+    const fin = new THREE.Mesh(finGeo, m(COL_FIN_A, 0.45, 0.3));
+    fin.rotation.x = -Math.PI/2;
+    fin.castShadow = true;
+    // tepi merah gelap (rongga) + slot putih tengah
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(R*0.65, 0.016, 0.02), m(0xeef2f7, 0.4, 0.15));
+    slot.position.set(R*1.02, 0, 0); fin.add(slot);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(R*0.95, 0.003, 0.024), m(COL_FIN_B, 0.4, 0.3));
+    edge.position.set(R*1.0, 0.008, 0); fin.add(edge);
+
+    pivot.add(fin);
+    servoFinMeshes.push(finRoot);
+  });
+
+  // ── ENGINE GLOW ──
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(0.06, 20),
+    new THREE.MeshBasicMaterial({ color: 0xff9e3d, transparent: true, opacity: 0.45, side: THREE.DoubleSide }));
+  glow.rotation.x = -Math.PI/2; glow.position.y = fBot - 0.02; glow.name = 'engineGlow';
+  group.add(glow);
+}
+
+// Jarak origin model (tengah badan) ke titik terendah kaki — SIM.z adalah
+// ketinggian KAKI di atas tanah, jadi mesh dinaikkan sebesar offset ini
+// agar wahana menapak di grid saat z=0 (bukan terkubur setengah badan).
+const CRAFT_GROUND_OFFSET = 0.745;
+function updateCraftVisuals() {
+  craft.position.set(SIM.x, SIM.z + CRAFT_GROUND_OFFSET, SIM.y);
+  // ── Pemetaan sikap → rotasi mesh (PERBAIKAN bug sumbu & tanda) ──
+  // Konsisten dgn persamaan translasi plant:
+  //   ddx = +sinθ·F_T/m  → θ>0 harus memiringkan sumbu badan (nose) ke +x
+  //   ddy = −sinφ·F_T/m  → φ>0 harus memiringkan nose ke −y
+  // Three.js: rotasi +z memutar ŷ→−x (maka pakai −θ), rotasi +x memutar
+  // ŷ→+z=+y_SIM (maka pakai −φ). Urutan 'ZXY' = tilt di rangka DUNIA lalu
+  // yaw pada sumbu badan — sesuai model fisika yang yaw-decoupled.
+  craft.rotation.order = 'ZXY';
+  craft.rotation.z = -SIM.theta;
+  craft.rotation.x = -SIM.phi;
+  craft.rotation.y = SIM.psi;
+  if (propeller) propeller.rotation.y += SIM.throttle * 15 * 0.016;
+  if (servoFinMeshes.length === 4) {
+    // Defleksi DIAGONAL: bilah memuntir pada sumbu memanjang (radial),
+    // seperti permukaan kendali yang memiringkan diri terhadap aliran udara.
+    const s = [SIM.s1, SIM.s2, SIM.s3, SIM.s4];
+    servoFinMeshes.forEach((f, i) => {
+      if (f.userData.pivot) f.userData.pivot.rotation.x = s[i];
+    });
+  }
+  const glow = craft.getObjectByName('engineGlow');
+  if (glow) {
+    glow.material.opacity = 0.3 + SIM.throttle * 0.7;
+    glow.material.color.setRGB(1.0, 0.3 + SIM.throttle*0.4, 0.0);
+  }
+  targetMarker.position.set(0, 0.02, 0);
+  trailPoints.push(new THREE.Vector3(SIM.x, SIM.z + CRAFT_GROUND_OFFSET, SIM.y));
+  if (trailPoints.length > 200) trailPoints.shift();
+  const pos = new Float32Array(trailPoints.length * 3);
+  for (let i = 0; i < trailPoints.length; i++) {
+    pos[i*3] = trailPoints[i].x; pos[i*3+1] = trailPoints[i].y; pos[i*3+2] = trailPoints[i].z;
+  }
+  trailLine.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  trailLine.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateCamera() {
+  const target = new THREE.Vector3(SIM.x, SIM.z + CRAFT_GROUND_OFFSET, SIM.y);
+  if (SIM.camMode === 'follow') {
+    const cx = target.x + camDist * Math.sin(camYaw) * Math.cos(camPitch);
+    const cy = target.y + camDist * Math.sin(camPitch) + 0.5;
+    const cz = target.z + camDist * Math.cos(camYaw) * Math.cos(camPitch);
+    camera.position.lerp(new THREE.Vector3(cx, cy, cz), 0.08);
+  } else if (SIM.camMode === 'top') {
+    camera.position.lerp(new THREE.Vector3(target.x, target.y+8, target.z+0.1), 0.06);
+  } else if (SIM.camMode === 'side') {
+    camera.position.lerp(new THREE.Vector3(target.x+6, target.y+2, target.z), 0.06);
+  }
+  camera.lookAt(target);
+}
+// ════════════════════════════════════════════════════════════════
+//  CHART RENDERING
+// ════════════════════════════════════════════════════════════════
+// warna seri deret-waktu mengikuti tema aktif (light mode pakai versi gelap)
+function seriesColors() {
+  return {
+    cyan:  cssVar('--accent',  '#3dd6f5'),
+    amber: cssVar('--accent2', '#ff9e3d'),
+    green: cssVar('--green',   '#4ade80'),
+    yellow:cssVar('--yellow',  '#facc15'),
+    red:   cssVar('--red',     '#f87171'),
+    magenta:cssVar('--magenta','#c084fc'),
+  };
+}
+function drawCharts() {
+  const canvas = document.getElementById('chart-canvas');
+  const wrap = document.getElementById('chart-canvas-wrap');
+  canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+  const W = canvas.width, CH = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const C_BG   = cssVar('--panel-2', '#0d141e');
+  const C_GRID = cssVar('--border', '#1e2a3a');
+  const C_DIM  = cssVar('--text-dim', '#7a8ba3');
+  const C_TEXT = cssVar('--text', '#e2e8f0');
+  ctx.clearRect(0,0,W,CH); ctx.fillStyle = C_BG; ctx.fillRect(0,0,W,CH);
+  const H = SIM.hist; const N = H.t.length;
+  if (N < 2) return;
+  const pad = { l:44, r:62, t:10, b:26 };
+  const iW = W - pad.l - pad.r, iH = CH - pad.t - pad.b;
+
+  function drawLine(data, color, min, max, yOff, h) {
+    if (!data || data.length < 2) return;
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.6;
+    ctx.shadowBlur = 3; ctx.shadowColor = color;
+    for (let i = 0; i < data.length; i++) {
+      const px = pad.l + (i/(N-1))*iW;
+      const norm = Math.max(0, Math.min(1, (data[i]-min)/(max-min||1)));
+      const py = yOff + (1-norm)*h;
+      if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke(); ctx.shadowBlur = 0;
+  }
+  // penanda nilai terkini di ujung kanan + label angka (selaras telemetri kiri)
+  function liveTag(data, color, min, max, yOff, h, unit, decimals) {
+    if (!data || data.length < 1) return;
+    const v = data[data.length-1];
+    const norm = Math.max(0, Math.min(1, (v-min)/(max-min||1)));
+    const py = yOff + (1-norm)*h;
+    // titik di ujung garis
+    ctx.beginPath(); ctx.arc(pad.l+iW, py, 3, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
+    // garis tipis ke label
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
+    ctx.moveTo(pad.l+iW, py); ctx.lineTo(pad.l+iW+6, py); ctx.stroke(); ctx.globalAlpha = 1;
+    // kotak nilai
+    const txt = (v>=0?'':'') + v.toFixed(decimals) + unit;
+    ctx.font = 'bold 11px JetBrains Mono';
+    const tw = ctx.measureText(txt).width;
+    ctx.fillStyle = C_BG; ctx.fillRect(pad.l+iW+7, py-7, tw+6, 14);
+    ctx.fillStyle = color; ctx.fillText(txt, pad.l+iW+10, py+3);
+  }
+  function drawGrid(yOff, h, min, max, unit) {
+    ctx.strokeStyle = C_GRID; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = yOff + (i/4)*h;
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+iW, y); ctx.stroke();
+      const v = max - (i/4)*(max-min);
+      ctx.fillStyle = C_DIM; ctx.font = '9px JetBrains Mono'; ctx.textAlign='right';
+      ctx.fillText(v.toFixed(v%1===0?0:1), pad.l-4, y+3); ctx.textAlign='left';
+    }
+    // garis nol tebal jika dalam rentang
+    if (min < 0 && max > 0) {
+      const yz = yOff + (1-(0-min)/(max-min))*h;
+      ctx.strokeStyle = C_DIM; ctx.lineWidth = 0.8; ctx.globalAlpha=0.5;
+      ctx.beginPath(); ctx.moveTo(pad.l, yz); ctx.lineTo(pad.l+iW, yz); ctx.stroke(); ctx.globalAlpha=1;
+    }
+    for (let i = 0; i <= 4; i++) {
+      const x = pad.l + (i/4)*iW;
+      ctx.strokeStyle = C_GRID; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(x, yOff); ctx.lineTo(x, yOff+h); ctx.stroke();
+      if (H.t.length > 0) {
+        const tVal = H.t[0] + (i/4)*(H.t[N-1]-H.t[0]);
+        ctx.fillStyle = C_DIM; ctx.font='8px JetBrains Mono'; ctx.fillText(tVal.toFixed(1)+'s', x-10, yOff+h+13);
+      }
+    }
+  }
+  // legend dot
+  function legend(items, x, y) {
+    ctx.font = '9px JetBrains Mono';
+    items.forEach((it,i) => {
+      const yy = y + i*13;
+      ctx.fillStyle = it.c; ctx.beginPath(); ctx.arc(x+3, yy-3, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = C_DIM; ctx.fillText(it.t, x+10, yy);
+    });
+  }
+
+  const SC = seriesColors();
+  const tab = SIM.chartTab;
+  if (tab === 0) {
+    // Roll/Pitch — dua panel, rentang dinamis kecil agar gerakan terlihat
+    const h = iH*0.44, y2 = pad.t + iH*0.56;
+    drawGrid(pad.t, h, -20, 20);
+    drawLine(H.phiRef, C_DIM, -20, 20, pad.t, h);
+    drawLine(H.phi,    SC.amber, -20, 20, pad.t, h);
+    drawLine(H.phiEst, SC.cyan, -20, 20, pad.t, h);
+    liveTag(H.phi, SC.amber, -20, 20, pad.t, h, '°', 1);
+    drawGrid(y2, h, -20, 20);
+    drawLine(H.thetaRef, C_DIM, -20, 20, y2, h);
+    drawLine(H.theta,    SC.yellow, -20, 20, y2, h);
+    drawLine(H.thetaEst, SC.green, -20, 20, y2, h);
+    liveTag(H.theta, SC.yellow, -20, 20, y2, h, '°', 1);
+    ctx.fillStyle=SC.amber; ctx.font='bold 10px Space Grotesk'; ctx.fillText('ROLL φ', pad.l+3, pad.t+11);
+    ctx.fillStyle=SC.yellow; ctx.fillText('PITCH θ', pad.l+3, y2+11);
+    legend([{c:SC.cyan,t:'estimasi'},{c:C_DIM,t:'setpoin'}], pad.l+70, pad.t+11);
+  } else if (tab === 1) {
+    // Ketinggian (kiri axis m) + throttle (skala terpisah)
+    drawGrid(pad.t, iH, 0, 6, 'm');
+    drawLine(H.altRef, C_DIM, 0, 6, pad.t, iH);
+    drawLine(H.thr, SC.cyan, 0, 100, pad.t, iH);
+    drawLine(H.z, SC.green, 0, 6, pad.t, iH);
+    liveTag(H.z, SC.green, 0, 6, pad.t, iH, 'm', 2);
+    ctx.fillStyle=SC.green; ctx.font='bold 10px Space Grotesk'; ctx.fillText('KETINGGIAN', pad.l+3, pad.t+11);
+    legend([{c:SC.green,t:'aktual'},{c:C_DIM,t:'target'},{c:SC.cyan,t:'throttle %'}], pad.l+95, pad.t+11);
+  } else if (tab === 2) {
+    // Servo S1-S4
+    drawGrid(pad.t, iH, -30, 30, '°');
+    drawLine(H.s1, SC.cyan, -30, 30, pad.t, iH);
+    drawLine(H.s2, SC.amber, -30, 30, pad.t, iH);
+    drawLine(H.s3, SC.green, -30, 30, pad.t, iH);
+    drawLine(H.s4, SC.yellow, -30, 30, pad.t, iH);
+    liveTag(H.s1, SC.cyan, -30, 30, pad.t, iH, '°', 1);
+    ctx.fillStyle=C_TEXT; ctx.font='bold 10px Space Grotesk'; ctx.fillText('DEFLEKSI SERVO', pad.l+3, pad.t+11);
+    legend([{c:SC.cyan,t:'S1'},{c:SC.amber,t:'S2'},{c:SC.green,t:'S3'},{c:SC.yellow,t:'S4'}], pad.l+105, pad.t+11);
+  } else if (tab === 3) {
+    // Keluaran PID (torsi, N.m — arsitektur domain-torsi BAB III)
+    drawGrid(pad.t, iH, -1.5, 1.5, 'N·m');
+    drawLine(H.uRoll, SC.amber, -1.5, 1.5, pad.t, iH);
+    drawLine(H.uPitch, SC.yellow, -1.5, 1.5, pad.t, iH);
+    drawLine(H.uYaw, SC.red, -1.5, 1.5, pad.t, iH);
+    liveTag(H.uRoll, SC.amber, -1.5, 1.5, pad.t, iH, 'N·m', 3);
+    ctx.fillStyle=C_TEXT; ctx.font='bold 10px Space Grotesk'; ctx.fillText('KELUARAN PID', pad.l+3, pad.t+11);
+    legend([{c:SC.amber,t:'roll'},{c:SC.yellow,t:'pitch'},{c:SC.red,t:'yaw'}], pad.l+95, pad.t+11);
+  } else if (tab === 4) {
+    // Kalman: raw vs estimasi
+    const h = iH*0.44, y2 = pad.t + iH*0.56;
+    drawGrid(pad.t, h, -20, 20);
+    drawLine(H.phi, C_DIM, -20, 20, pad.t, h);
+    drawLine(H.phiEst, SC.cyan, -20, 20, pad.t, h);
+    liveTag(H.phiEst, SC.cyan, -20, 20, pad.t, h, '°', 1);
+    drawGrid(y2, h, -20, 20);
+    drawLine(H.theta, C_DIM, -20, 20, y2, h);
+    drawLine(H.thetaEst, SC.green, -20, 20, y2, h);
+    liveTag(H.thetaEst, SC.green, -20, 20, y2, h, '°', 1);
+    ctx.fillStyle=SC.cyan; ctx.font='bold 10px Space Grotesk'; ctx.fillText('KALMAN ROLL', pad.l+3, pad.t+11);
+    ctx.fillStyle=SC.green; ctx.fillText('KALMAN PITCH', pad.l+3, y2+11);
+    legend([{c:SC.cyan,t:'estimasi'},{c:C_DIM,t:'mentah'}], pad.l+90, pad.t+11);
+  }
+}
+
+// ── PETA LINTASAN WAYPOINT (top-down, di sidebar kanan) ──────
+function drawWpMap() {
+  const cv = document.getElementById('wp-map-canvas');
+  if (!cv) return;
+  const wrap = document.getElementById('wp-map-wrap');
+  const W = wrap.clientWidth - 24;          // dikurangi padding
+  cv.width = W; cv.height = W;               // persegi
+  const ctx = cv.getContext('2d');
+  const C_BG = cssVar('--panel-2','#0d141e'), C_GRID = cssVar('--border','#1e2a3a');
+  const C_DIM = cssVar('--text-dim','#7a8ba3'), C_TEXT = cssVar('--text','#e2e8f0');
+  ctx.clearRect(0,0,W,W); ctx.fillStyle=C_BG; ctx.fillRect(0,0,W,W);
+
+  const pad = 6, iW = W - pad*2;
+  const cxC = pad + iW/2, cyC = pad + iW/2;
+  const scaleRange = 12, sc = iW / (scaleRange*2);
+
+  // grid
+  ctx.strokeStyle = C_GRID; ctx.lineWidth = 0.5;
+  for (let g = -scaleRange; g <= scaleRange; g += 3) {
+    const gx = cxC + g*sc, gy = cyC + g*sc;
+    ctx.beginPath(); ctx.moveTo(gx, pad); ctx.lineTo(gx, pad+iW); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, gy); ctx.lineTo(pad+iW, gy); ctx.stroke();
+  }
+  // sumbu pusat
+  ctx.strokeStyle = C_GRID; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cxC, pad); ctx.lineTo(cxC, pad+iW); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, cyC); ctx.lineTo(pad+iW, cyC); ctx.stroke();
+  ctx.fillStyle=C_DIM; ctx.font='9px JetBrains Mono';
+  ctx.fillText('X', pad+iW-9, cyC-4); ctx.fillText('Z', cxC+4, pad+9);
+
+  // jejak
+  if (trailPoints && trailPoints.length > 1) {
+    ctx.beginPath(); ctx.strokeStyle=cssVar('--accent','#3dd6f5'); ctx.lineWidth=1.5; ctx.globalAlpha=0.6;
+    trailPoints.forEach((p,i) => {
+      const px = cxC + p.x*sc, py = cyC - p.z*sc;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    });
+    ctx.stroke(); ctx.globalAlpha=1;
+  }
+  // waypoint
+  WP.waypoints.forEach((wp,i) => {
+    const col = WP_PALETTE()[i % 6];
+    const wx = cxC + wp.x*sc, wy = cyC - wp.z*sc;
+    ctx.beginPath(); ctx.arc(wx, wy, Math.max(3, wp.r*sc), 0, Math.PI*2);
+    ctx.strokeStyle = col; ctx.lineWidth = wp.reached ? 2 : 1.5;
+    ctx.fillStyle = wp.reached ? col+'40' : col+'18'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col; ctx.font='bold 9px Space Grotesk'; ctx.fillText((i+1), wx+wp.r*sc+1, wy+3);
+    if (i === WP.currentIdx && WP.active) {
+      const cx2 = cxC + SIM.x*sc, cy2 = cyC - SIM.y*sc;
+      ctx.beginPath(); ctx.moveTo(cx2,cy2); ctx.lineTo(wx,wy);
+      ctx.strokeStyle=col+'99'; ctx.lineWidth=1; ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+  });
+  // wahana
+  const cpx = cxC + SIM.x*sc, cpy = cyC - SIM.y*sc;
+  ctx.beginPath(); ctx.arc(cpx, cpy, 4.5, 0, Math.PI*2); ctx.fillStyle=cssVar('--red','#f87171'); ctx.fill();
+  ctx.strokeStyle=C_BG; ctx.lineWidth=1.5; ctx.stroke();
+
+  // info ringkas
+  ctx.fillStyle=C_DIM; ctx.font='8px JetBrains Mono';
+  if (WP.active) ctx.fillText(`${WP.distToWP.toFixed(1)}m · ${WP.guidanceMode}`, pad+2, pad+iW-4);
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  UI UPDATES
+// ════════════════════════════════════════════════════════════════
+function updateUI() {
+  const d = (v,n=1) => v.toFixed(n);
+  document.getElementById('t-alt').textContent  = d(SIM.z, 2);
+  document.getElementById('t-thr').textContent  = d(SIM.throttle*100, 1);
+  document.getElementById('t-roll').textContent = d(SIM.phi*RAD, 1);
+  document.getElementById('t-pitch').textContent= d(SIM.theta*RAD, 1);
+  document.getElementById('t-yaw').textContent  = d(SIM.psi*RAD, 1);
+  const yrEl = document.getElementById('t-yawrate');
+  if (yrEl) {
+    const yr = SIM.dpsi*RAD;
+    yrEl.textContent = 'derajat · ψ̇ ' + d(yr,0) + '°/s';
+    yrEl.style.color = Math.abs(yr) > 90 ? 'var(--red)' : '';
+  }
+  document.getElementById('tb-alt').style.width   = Math.min(100,SIM.z/5*100)+'%';
+  document.getElementById('tb-thr').style.width   = SIM.throttle*100+'%';
+  document.getElementById('tb-roll').style.width  = Math.min(100,Math.abs(SIM.phi)/SIM.servoMax*100)+'%';
+  document.getElementById('tb-pitch').style.width = Math.min(100,Math.abs(SIM.theta)/SIM.servoMax*100)+'%';
+  document.getElementById('tb-yaw').style.width   = Math.min(100,50+SIM.psi*RAD/360*50)+'%';
+  const rollRef_rad_disp  = SIM.rollRef  * SIM.servoMax;
+  const pitchRef_rad_disp = SIM.pitchRef * SIM.servoMax;
+  const errRoll  = (rollRef_rad_disp  - SIM.phi)   * RAD;
+  const errPitch = (pitchRef_rad_disp - SIM.theta)  * RAD;
+  const errYaw   = (SIM.yawRef - SIM.dpsi) * RAD;
+  const errAlt   = SIM.altRef - SIM.z;
+  document.getElementById('pev-roll').textContent  = d(errRoll,1)+'°';
+  document.getElementById('pev-pitch').textContent = d(errPitch,1)+'°';
+  document.getElementById('pev-yaw').textContent   = d(errYaw,1)+'°/s';
+  document.getElementById('pev-alt').textContent   = d(errAlt,2)+'m';
+  const setBar = (id, val, range) => {
+    const el = document.getElementById(id);
+    el.style.width = Math.min(50, Math.abs(val/range*50))+'%';
+    el.style.left  = val >= 0 ? '50%' : Math.max(0, 50+val/range*50)+'%';
+  };
+  setBar('pe-roll', errRoll, 30); setBar('pe-pitch', errPitch, 30);
+  setBar('pe-yaw', errYaw, 30); setBar('pe-alt', errAlt, 3);
+  const setServoBar = (pid, pv, val) => {
+    const el = document.getElementById(pid);
+    document.getElementById(pv).textContent = d(val*RAD,1)+'°';
+    const pct = Math.abs(val)/SIM.servoMax*50;
+    el.style.width = pct+'%'; el.style.left = val>=0 ? '50%' : (50-pct)+'%';
+  };
+  setServoBar('pf-s1','pv-s1', SIM.s1); setServoBar('pf-s2','pv-s2', SIM.s2);
+  setServoBar('pf-s3','pv-s3', SIM.s3); setServoBar('pf-s4','pv-s4', SIM.s4);
+  // kolektif anti-torsi: rerata keempat fin (≠0 saat hover — melawan Q prop)
+  setServoBar('pf-col','pv-col', (SIM.s1+SIM.s2+SIM.s3+SIM.s4)/4);
+  document.getElementById('k-roll').textContent   = d(SIM.xK_roll[0],3);
+  document.getElementById('k-pitch').textContent  = d(SIM.xK_pitch[0],3);
+  document.getElementById('k-gain-r').textContent = d(SIM.kGainRoll,3);
+  document.getElementById('k-gain-p').textContent = d(SIM.kGainPitch,3);
+  document.getElementById('k-cov-r').textContent  = d(SIM.PK_roll[0][0],3);
+  document.getElementById('sim-time').textContent = 'T+ '+d(SIM.t,3)+' s';
+  // telemetri baterai live: mekanisme nyata di balik batas kinerja vs massa
+  const bl = document.getElementById('plant-line4');
+  if (bl) {
+    bl.textContent = `Batt ${SIM.battV.toFixed(2)}V · ${(SIM.battSoc*100).toFixed(0)}% · `
+      + `${SIM.battI.toFixed(1)}A · ω_eff ${(SIM.omegaEff*100).toFixed(0)}%`;
+    bl.style.color = SIM.battV < 10.2 ? 'var(--red)'
+                   : (SIM.omegaEff < 0.999 ? 'var(--accent2)' : 'var(--text-dim)');
+  }
+  document.getElementById('ti-x').textContent    = d(SIM.x,2);
+  document.getElementById('ti-z').textContent    = d(SIM.y,2);
+  document.getElementById('ti-y').textContent    = d(SIM.z,2);
+  document.getElementById('ti-alt-err').textContent = (SIM.z>=SIM.altRef-0.05?'✓':'Δ')+d(SIM.altRef-SIM.z,2);
+  document.getElementById('ti-roll').textContent  = d(SIM.rollRef,2);
+  document.getElementById('ti-pitch').textContent = d(SIM.pitchRef,2);
+  const phiDeg = Math.abs(SIM.phi*RAD), thetaDeg = Math.abs(SIM.theta*RAD);
+  const altErr = Math.abs(SIM.altRef - SIM.z);
+  const isStable = phiDeg < 5 && thetaDeg < 5 && altErr < 0.5 && SIM.z > 0.1;
+  const isCritical = phiDeg > 25 || thetaDeg > 25;
+  const twr = twrNow().twr;
+  const overweight = twr < 1.0 && SIM.z < 0.1;   // tak mampu terangkat
+  const sysEl = document.getElementById('sys-status');
+  if (SIM.crashed) {
+    sysEl.textContent = 'CRASH — TEKAN RESET';
+    sysEl.className = 'status-pill pill-red';
+  } else if (overweight) {
+    sysEl.textContent = 'TWR<1 · TIDAK TERANGKAT';
+    sysEl.className = 'status-pill pill-red';
+  } else {
+    sysEl.textContent = isCritical ? 'KRITIS' : (isStable ? 'STABIL' : 'MENYESUAIKAN');
+    sysEl.className = 'status-pill ' + (isCritical ? 'pill-red' : (isStable ? 'pill-green' : 'pill-blue'));
+  }
+  updateWpUI();
+  drawServoCross();
+  const recEl = document.getElementById('rec-status');
+  if (recEl) recEl.textContent = (REC.active ? '● MEREKAM: ' : 'Rekaman: ') + REC.rows.length + ' sampel';
+}
+
+function drawServoCross() {
+  const cv = document.getElementById('servo-cross-canvas');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height, cx = W/2, cy = H/2;
+  const SC_BG = cssVar('--panel-2', '#0d141e'), SC_LINE = cssVar('--border-lt', '#28384c');
+  ctx.clearRect(0,0,W,H); ctx.fillStyle = SC_BG; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = SC_LINE; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,40,0,Math.PI*2); ctx.strokeStyle=SC_LINE; ctx.stroke();
+  const SC = seriesColors();
+  const servos = [
+    { angle: -Math.PI/2, val: SIM.s1, color: SC.cyan,   label: 'S1' },
+    { angle: 0,          val: SIM.s2, color: SC.amber,  label: 'S2' },
+    { angle: Math.PI/2,  val: SIM.s3, color: SC.green,  label: 'S3' },
+    { angle: Math.PI,    val: SIM.s4, color: SC.yellow, label: 'S4' },
+  ];
+  servos.forEach(s => {
+    const r = 38, x1 = cx + r*Math.cos(s.angle), y1 = cy + r*Math.sin(s.angle);
+    const deflect = s.val/SIM.servoMax*14;
+    const dx = deflect*Math.sin(s.angle), dy = deflect*Math.cos(s.angle);
+    ctx.beginPath(); ctx.arc(x1, y1, 7, 0, Math.PI*2);
+    ctx.fillStyle = s.color+'33'; ctx.fill(); ctx.strokeStyle = s.color; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x1+dx, y1+dy);
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = s.color; ctx.font = '9px JetBrains Mono'; ctx.textAlign = 'center';
+    ctx.fillText(s.label, x1, y1+3);
+  });
+  // ── visual torsi yaw: busur panah Q prop vs kolektif fin ──
+  // Q propeller (reaksi, arah CW dilihat dari atas) — oranye;
+  // torsi lawan dari kolektif fin — magenta, arah berlawanan.
+  const SCm = seriesColors();
+  const arcArrow = (radius, a0, a1, color, w) => {
+    ctx.beginPath(); ctx.arc(cx, cy, radius, a0, a1, a1 < a0);
+    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
+    const ah = 4.5, dir = (a1 >= a0 ? 1 : -1);
+    const ax = cx + radius*Math.cos(a1), ay = cy + radius*Math.sin(a1);
+    const tx = -Math.sin(a1)*dir, ty = Math.cos(a1)*dir;
+    ctx.beginPath();
+    ctx.moveTo(ax + tx*ah, ay + ty*ah);
+    ctx.lineTo(ax - ty*ah*0.7 , ay + tx*ah*0.7);
+    ctx.lineTo(ax + ty*ah*0.7 , ay - tx*ah*0.7);
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+  };
+  // besaran ∝ throttle (Q=cq·FT) dan ∝ kolektif fin
+  const qArc = 0.5 + SIM.throttle * 1.6;                       // panjang busur Q
+  arcArrow(20, -0.5, -0.5 + qArc, SCm.amber, 2);               // Q prop (CW)
+  const col = (SIM.s1+SIM.s2+SIM.s3+SIM.s4)/4;
+  const fArc = Math.min(2.2, Math.abs(col)/SIM.servoMax * 4);
+  if (fArc > 0.06) arcArrow(27, 2.6, 2.6 - Math.sign(col)*fArc, SCm.magenta, 2);  // lawan fin
+  ctx.font='8px JetBrains Mono';
+  ctx.fillStyle=SCm.amber;   ctx.fillText('Q prop', cx+14, cy-22);
+  ctx.fillStyle=SCm.magenta; ctx.fillText('fin', cx-34, cy+30);
+
+  const motorAlpha = 0.3 + SIM.throttle * 0.7;
+  ctx.beginPath(); ctx.arc(cx,cy,8,0,Math.PI*2);
+  ctx.fillStyle = `rgba(200,90,0,${motorAlpha})`; ctx.fill();
+  ctx.strokeStyle = '#ff9e3d'; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='#445566'; ctx.font='8px JetBrains Mono'; ctx.textAlign='center';
+  ctx.fillText('M', cx, cy+3); ctx.textAlign = 'left';
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ════════════════════════════════════════════════════════════════
+let lastTime = null, animId = null;
+const STEPS_PER_FRAME = 4;
+function mainLoop(ts) {
+  animId = requestAnimationFrame(mainLoop);
+  if (!lastTime) { lastTime = ts; return; }
+  const rawDt = Math.min((ts - lastTime)/1000, 0.05) * SIM.speed;
+  lastTime = ts;
+  if (SIM.running) {
+    const step = SIM.dt;
+    // akumulator waktu: tidak ada dt yang hilang antar-frame, dan
+    // PERBAIKAN BUG: Math.round(speed) = 0 utk speed<0.5 membekukan simulasi
+    SIM.simAcc += rawDt;
+    let nSteps = Math.floor(SIM.simAcc / step);
+    const cap = Math.max(1, Math.ceil(STEPS_PER_FRAME * SIM.speed) * 2);
+    if (nSteps > cap) { nSteps = cap; SIM.simAcc = 0; } else { SIM.simAcc -= nSteps * step; }
+    for (let i = 0; i < nSteps; i++) {
+      waypointGuidanceStep(step);
+      scriptedScenarioStep();   // menimpa rollRef/pitchRef/yawRef/altRef jika SCRIPTED.active
+      if (SERVO_TEST.active) { applyServoTestOverride(step); } else { controlStep(step); }
+      physicsStep(step);
+      SIM.t += step;
+      recordSample();
+    }
+  }
+  updateCraftVisuals();
+  updateCamera();
+  renderer.render(scene, camera);
+  updateUI();
+  drawCharts();
+  drawWpMap();
+  frameCount++;
+  if (ts - lastFPSTime > 1000) {
+    document.getElementById('ov-fps').innerHTML = 'FPS <b>'+frameCount+'</b>';
+    document.getElementById('ov-state').innerHTML = 'STATUS <b>'+(SIM.crashed?'CRASH':(SIM.running?'BERJALAN':'JEDA'))+'</b>';
+    frameCount = 0; lastFPSTime = ts;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CONTROL FUNCTIONS
+// ════════════════════════════════════════════════════════════════
+function toggleSim() {
+  SIM.running = !SIM.running;
+  const btn = document.getElementById('btn-run');
+  btn.textContent = SIM.running ? '⏸ PAUSE' : '▶ RUN';
+  btn.classList.toggle('active', SIM.running);
+}
+function resetSim() {
+  SIM.running = false; SIM.t = 0;
+  SIM.crashed = false; SIM.crashReason = '';
+  SIM.gustX = 0; SIM.gustY = 0; SIM.simAcc = 0;
+  SIM.battSoc = 1.0; SIM.battV = 12.6; SIM.battI = 0; SIM.omegaEff = 1.0;
+  SIM.omegaState = 0;
+  if (!SIM.antiTorque) toggleAntiTorque();   // demo anti-torsi kembali ON
+  SIM.phi=0; SIM.dphi=0; SIM.theta=0; SIM.dtheta=0; SIM.psi=0; SIM.dpsi=0;
+  SIM.x=0; SIM.dx=0; SIM.y=0; SIM.dy=0; SIM.z=0; SIM.dz=0;
+  SIM.altRefSmooth=0;
+  SIM.intRoll=0; SIM.intPitch=0; SIM.intYaw=0; SIM.intAlt=0;
+  SIM.prevErrRoll=0; SIM.prevErrPitch=0; SIM.prevErrYaw=0; SIM.prevErrAlt=0;
+  SIM.xK_roll=[0,0]; SIM.PK_roll=[[1,0],[0,1]];
+  SIM.xK_pitch=[0,0]; SIM.PK_pitch=[[1,0],[0,1]];
+  SIM.s1=0; SIM.s2=0; SIM.s3=0; SIM.s4=0; SIM.throttle = SIM.throttleBase;
+  SIM.rollRef=0; SIM.pitchRef=0; SIM.yawRef=0; SIM.altRef=1.5;
+  ['sl-roll','sl-pitch','sl-yaw'].forEach(id => { const el = document.getElementById(id); if(el) el.value = 0; });
+  const vR=document.getElementById('v-roll'); if(vR) vR.textContent='0.00';
+  const vP=document.getElementById('v-pitch'); if(vP) vP.textContent='0.00';
+  const vY=document.getElementById('v-yaw'); if(vY) vY.textContent='0.00';
+  const vA=document.getElementById('sl-alt'); if(vA) vA.value=1.5;
+  const vAL=document.getElementById('v-alt'); if(vAL) vAL.textContent='1.5m';
+  trailPoints = [];
+  Object.keys(SIM.hist).forEach(k => SIM.hist[k]=[]);
+  document.getElementById('btn-run').textContent = '▶ RUN';
+  document.getElementById('btn-run').classList.remove('active');
+  resetWpNav();
+}
+function setMode(m) {
+  SIM.mode = m;
+  ['auto','semi','manual'].forEach(n => document.getElementById('btn-'+n).classList.toggle('active', n===m));
+  document.getElementById('mode-status').textContent = m.toUpperCase();
+  document.getElementById('mode-badge').textContent = m.toUpperCase();
+  // konsisten dgn firmware: keluar dari AUTO menghentikan navigasi waypoint
+  if (m !== 'auto' && WP.active) {
+    WP.active = false;
+    const b = document.getElementById('btn-wp-run');
+    if (b) { b.textContent = '▶ START NAV'; b.classList.remove('active'); }
+    document.getElementById('guidance-overlay').style.display = 'none';
+    document.getElementById('wp-data-box').style.display = 'none';
+    document.getElementById('wp-progress-bar').style.display = 'none';
+  }
+}
+function setCam(m) { SIM.camMode = m; }
+
+// ── DEMO ANTI-TORSI (masalah dasar monochopter/single-rotor) ────────
+// Hukum III Newton: motor memutar propeller ⇒ propeller memberi torsi
+// reaksi berlawanan arah ke badan. Tanpa kolektif fin, badan berputar
+// makin cepat sampai dibatasi redaman udara. Tombol ini mematikan/
+// menghidupkan kolektif fin untuk memperagakan fenomena tsb.
+function toggleAntiTorque() {
+  SIM.antiTorque = !SIM.antiTorque;
+  const b = document.getElementById('btn-antitorque');
+  if (b) {
+    b.textContent = SIM.antiTorque ? '🌀 ANTI-TORSI: ON' : '🌀 ANTI-TORSI: OFF';
+    b.classList.toggle('active', SIM.antiTorque);
+    b.style.borderColor = SIM.antiTorque ? '' : 'var(--red)';
+    b.style.color = SIM.antiTorque ? '' : 'var(--red)';
+  }
+  showPresetBanner(SIM.antiTorque ? '🌀 ANTI-TORSI AKTIF' : '🌀 ANTI-TORSI MATI',
+    SIM.antiTorque ? 'fin kembali melawan torsi reaksi prop — putaran ditangkap PID yaw'
+                   : 'torsi reaksi propeller tak terlawan — badan mulai berputar (Hukum III Newton)');
+}
+
+// ── TOGGLE TEMA TERANG / GELAP ──────────────────────────────
+let isLight = false;
+function setTheme(light) {
+  isLight = light;
+  document.body.classList.toggle('light', isLight);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = isLight ? '☀' : '☾';
+  try { localStorage.setItem('mc_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+  applySceneTheme();
+}
+function toggleTheme() { setTheme(!isLight); }
+
+// ── MODAL BANTUAN ───────────────────────────────────────────
+function toggleHelp() {
+  const ov = document.getElementById('help-overlay');
+  if (ov) ov.classList.toggle('show');
+}
+function setHelpTab(i, btn) {
+  document.querySelectorAll('.help-tab').forEach((t,j) => t.classList.toggle('active', j===i));
+  document.querySelectorAll('.help-page').forEach((p,j) => p.classList.toggle('active', j===i));
+  const body = document.getElementById('help-body'); if (body) body.scrollTop = 0;
+}
+function cssVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.body).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch(e) { return fallback; }
+}
+function applySceneTheme() {
+  if (!renderer || !scene) return;
+  const bg   = cssVar('--scene-bg', '#0a0f1a');
+  const grid = cssVar('--scene-grid', '#2a3850');
+  const grid2= cssVar('--scene-grid2', '#16202e');
+  const grnd = cssVar('--scene-ground', '#0d141e');
+  renderer.setClearColor(new THREE.Color(bg), 1);
+  if (scene.fog) scene.fog.color = new THREE.Color(bg);
+  // ground & grid disimpan di scene; cari berdasarkan nama/tipe
+  scene.traverse(obj => {
+    if (obj.name === 'sceneStars') obj.visible = !isLight;   // bintang hanya di tema gelap
+    if (obj.name === 'sceneGround' && obj.material) obj.material.color = new THREE.Color(grnd);
+    if (obj.name === 'sceneGrid' && obj.material) {
+      // GridHelper punya material array atau tunggal
+      if (Array.isArray(obj.material)) obj.material.forEach(mm => mm.color = new THREE.Color(grid));
+      else obj.material.color = new THREE.Color(grid);
+    }
+  });
+}
+
+// ── PEREKAMAN DATA & EKSPOR CSV ──────────────────────────────
+const REC = { active: false, rows: [], everyN: 4, counter: 0 };
+function toggleRecord() {
+  REC.active = !REC.active;
+  const btn = document.getElementById('btn-rec');
+  if (REC.active) {
+    REC.rows = []; REC.counter = 0;
+    btn.textContent = '⏹ STOP'; btn.classList.add('active');
+    btn.style.borderColor = 'var(--red)'; btn.style.color = 'var(--red)';
+  } else {
+    btn.textContent = '⏺ REKAM'; btn.classList.remove('active');
+    btn.style.borderColor = ''; btn.style.color = '';
+  }
+}
+function recordSample() {
+  // dipanggil tiap step fisika saat REC.active; subsample agar file ringkas
+  if (!REC.active) return;
+  REC.counter++;
+  if (REC.counter % REC.everyN !== 0) return;
+  REC.rows.push([
+    SIM.t.toFixed(4),
+    (SIM.phi*RAD).toFixed(4), (SIM.theta*RAD).toFixed(4), (SIM.psi*RAD).toFixed(4),
+    (SIM.xK_roll[0]*RAD).toFixed(4), (SIM.xK_pitch[0]*RAD).toFixed(4),
+    (SIM.rollRef*SIM.servoMax*RAD).toFixed(4), (SIM.pitchRef*SIM.servoMax*RAD).toFixed(4),
+    SIM.x.toFixed(4), SIM.y.toFixed(4), SIM.z.toFixed(4), SIM.altRef.toFixed(4),
+    (SIM.s1*RAD).toFixed(4), (SIM.s2*RAD).toFixed(4), (SIM.s3*RAD).toFixed(4), (SIM.s4*RAD).toFixed(4),
+    (SIM.throttle*100).toFixed(2),
+    WP.active ? (WP.currentIdx+1) : 0, WP.distToWP.toFixed(4)
+  ]);
+}
+function exportCSV() {
+  if (REC.rows.length === 0) { alert('Belum ada data. Tekan ⏺ REKAM lalu jalankan simulasi.'); return; }
+  const header = ['t_s','roll_deg','pitch_deg','yaw_deg','roll_kf_deg','pitch_kf_deg',
+    'roll_ref_deg','pitch_ref_deg','x_pos_m','z_lat_m','altitude_m','alt_ref_m',
+    's1_deg','s2_deg','s3_deg','s4_deg','throttle_pct','wp_idx','wp_dist_m'];
+  const csv = [header.join(',')].concat(REC.rows.map(r => r.join(','))).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `monochopter_sim_${REC.rows.length}samples.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function setChartTab(n, el) {
+  SIM.chartTab = n;
+  document.querySelectorAll('.chart-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+function bindSlider(id, valId, simKey, fmt, scale=1) {
+  const sl = document.getElementById(id), vl = document.getElementById(valId);
+  if (!sl) return;
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value) * scale;
+    SIM[simKey] = v; vl.textContent = fmt(v);
+  });
+}
+bindSlider('sl-roll', 'v-roll', 'rollRef', v=>v.toFixed(2), 0.01);
+bindSlider('sl-pitch', 'v-pitch', 'pitchRef', v=>v.toFixed(2), 0.01);
+bindSlider('sl-yaw', 'v-yaw', 'yawRef', v=>v.toFixed(2), 0.01);
+bindSlider('sl-alt', 'v-alt', 'altRef', v=>v.toFixed(1)+'m');
+bindSlider('sl-kp', 'v-kp', 'Kp', v=>v.toFixed(2));
+bindSlider('sl-ki', 'v-ki', 'Ki', v=>v.toFixed(2));
+bindSlider('sl-kd', 'v-kd', 'Kd', v=>v.toFixed(2));
+bindSlider('sl-speed', 'v-speed', 'speed', v=>v.toFixed(1)+'x');
+bindSlider('sl-noise', 'v-noise', 'noiseLevel', v=>v.toFixed(2));
+bindSlider('sl-wind', 'v-wind', 'wind', v=>v.toFixed(2));
+bindSlider('sl-kp-alt', 'v-kp-alt', 'Kp_alt', v=>v.toFixed(2));
+bindSlider('sl-kd-alt', 'v-kd-alt', 'Kd_alt', v=>v.toFixed(2));
+bindSlider('sl-thr-base', 'v-thr-base', 'throttleBase', v=>v.toFixed(3));
+
+// ════════════════════════════════════════════════════════════════
+//  PARAMETER FISIK DINAMIS + STATUS KELAYAKAN (TWR)
+//  Parameter plant kini bisa diubah live untuk menguji perilaku
+//  sistem kontrol saat plant TIDAK sesuai desain — mis. massa
+//  dinaikkan melebihi kemampuan gaya angkat (TWR < 1) → wahana
+//  tidak akan terangkat karena persamaan gerak memang menghitungnya:
+//  ddz = -g + cosφ·cosθ·(kT·ω²)/m, dengan ω ≤ ω_max (throttle ≤ 1).
+// ════════════════════════════════════════════════════════════════
+const PHYS_FINAL = { m:0.5, kT:1.9923e-6, omega_max:2046, Keff:0.1139,
+                     Ixx:4.97e-3, Izz:1.406e-3, thrBase:0.767 };
+const IZZ_RATIO = PHYS_FINAL.Izz / PHYS_FINAL.Ixx;   // pertahankan rasio inersia
+
+function twrNow() {
+  const Fmax = SIM.kT * SIM.omega_max * SIM.omega_max;   // gaya angkat maks (throttle=1)
+  return { Fmax, twr: Fmax / (SIM.m * SIM.g) };
+}
+function thrHoverNow() {
+  // throttle hover teoretis: √(mg/kT)/ω_max — bisa >1 jika TWR<1
+  return Math.sqrt(SIM.m * SIM.g / SIM.kT) / SIM.omega_max;
+}
+function updatePlantStatus() {
+  const { Fmax, twr } = twrNow();
+  const thrH = thrHoverNow();
+  const title = document.getElementById('plant-status-title');
+  const box   = document.getElementById('plant-status-box');
+  const l1 = document.getElementById('plant-line1');
+  const l2 = document.getElementById('plant-line2');
+  const l3 = document.getElementById('plant-line3');
+  if (!title) return;
+  l1.textContent = `m=${SIM.m.toFixed(2)}kg · kT=${(SIM.kT*1e6).toFixed(2)}e-6 · ω=${SIM.omega_max.toFixed(0)}`;
+  l2.textContent = `F_max=${Fmax.toFixed(2)}N · berat=${(SIM.m*SIM.g).toFixed(2)}N · TWR=${twr.toFixed(2)}`;
+  if (twr < 1.0) {
+    title.textContent = '✕ TWR < 1 — TIDAK BISA TERBANG';
+    title.style.color = 'var(--red)';
+    box.style.background = 'rgba(248,113,113,0.08)';
+    l3.textContent = `thr_hover teoretis=${thrH.toFixed(3)} (>1, mustahil) — kelebihan beban`;
+  } else if (twr < 1.2) {
+    title.textContent = '⚠ TWR MARGINAL — daya angkat pas-pasan';
+    title.style.color = 'var(--accent2)';
+    box.style.background = 'rgba(255,158,61,0.07)';
+    l3.textContent = `thr_hover=${thrH.toFixed(3)} — sisa kendali altitude sangat tipis`;
+  } else {
+    title.textContent = '✓ PARAMETER LAYAK TERBANG';
+    title.style.color = 'var(--green)';
+    box.style.background = 'rgba(74,222,128,0.06)';
+    const match = Math.abs(SIM.m-PHYS_FINAL.m)<1e-9 && Math.abs(SIM.kT-PHYS_FINAL.kT)<1e-12 &&
+                  Math.abs(SIM.omega_max-PHYS_FINAL.omega_max)<1e-6 &&
+                  Math.abs(SIM.Keff-PHYS_FINAL.Keff)<1e-9 && Math.abs(SIM.Ixx-PHYS_FINAL.Ixx)<1e-9;
+    l3.textContent = match
+      ? `thr_hover=${thrH.toFixed(3)} · Kp=0.578 Ki=1.065 Kd=0.117 · PM=65.0° (desain skripsi)`
+      : `thr_hover=${thrH.toFixed(3)} · plant ≠ desain — amati respons PID`;
+  }
+}
+function setThrHoverFromPhysics() {
+  const thrH = Math.min(0.95, Math.max(0.5, thrHoverNow()));
+  SIM.throttleBase = thrH;
+  const sl = document.getElementById('sl-thr-base'); if (sl) sl.value = thrH;
+  const v  = document.getElementById('v-thr-base');  if (v)  v.textContent = thrH.toFixed(3);
+  updatePlantStatus();
+}
+function resetPhysics() {
+  SIM.m = PHYS_FINAL.m; SIM.kT = PHYS_FINAL.kT; SIM.omega_max = PHYS_FINAL.omega_max;
+  SIM.Keff = PHYS_FINAL.Keff;
+  SIM.Ixx = PHYS_FINAL.Ixx; SIM.Iyy = PHYS_FINAL.Ixx; SIM.Izz = PHYS_FINAL.Izz;
+  SIM.throttleBase = PHYS_FINAL.thrBase;
+  const set = (id,val,vid,txt) => {
+    const e=document.getElementById(id); if(e) e.value=val;
+    const v=document.getElementById(vid); if(v) v.textContent=txt; };
+  set('sl-mass', 0.5, 'v-mass', '0.50kg');
+  set('sl-kt', 1.99, 'v-kt', '1.99e-6');
+  set('sl-omega', 2046, 'v-omega', '2046');
+  set('sl-keff', 0.1139, 'v-keff', '0.114');
+  set('sl-ixx', 4.97, 'v-ixx', '4.97m');
+  set('sl-cgoff', 0, 'v-cgoff', '0.0mm'); SIM.cgOff = 0;
+  set('sl-thr-base', 0.767, 'v-thr-base', '0.767');
+  updatePlantStatus();
+}
+// binding slider fisik (mass/kT/omega/Keff langsung; Ixx menjaga rasio Izz)
+function bindPhysSlider(id, valId, apply, fmt) {
+  const sl = document.getElementById(id), vl = document.getElementById(valId);
+  if (!sl) return;
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value);
+    apply(v); vl.textContent = fmt(v);
+    updatePlantStatus();
+  });
+}
+bindPhysSlider('sl-mass',  'v-mass',  v => { SIM.m = v; },               v => v.toFixed(2)+'kg');
+bindPhysSlider('sl-kt',    'v-kt',    v => { SIM.kT = v*1e-6; },         v => v.toFixed(2)+'e-6');
+bindPhysSlider('sl-omega', 'v-omega', v => { SIM.omega_max = v; },       v => v.toFixed(0));
+bindPhysSlider('sl-keff',  'v-keff',  v => { SIM.Keff = v; },            v => v.toFixed(3));
+bindPhysSlider('sl-ixx',   'v-ixx',   v => { SIM.Ixx = v*1e-3; SIM.Iyy = v*1e-3;
+                                             SIM.Izz = v*1e-3*IZZ_RATIO; }, v => v.toFixed(2)+'m');
+bindPhysSlider('sl-cgoff', 'v-cgoff', v => { SIM.cgOff = v*1e-3; },       v => v.toFixed(1)+'mm');
+updatePlantStatus();
+// ════════════════════════════════════════════════════════════════
+//  WAYPOINT NAVIGATION SYSTEM
+// ════════════════════════════════════════════════════════════════
+const WP = {
+  waypoints: [], active: false, currentIdx: 0,
+  guidanceMode: 'LAUNCH-DIR-HOLD',
+  Kn: 0.25, maxTilt: 10 * Math.PI/180,
+  Vmax: 1.2,        // kecepatan jelajah maks (m/s) untuk velocity-targeting
+  lateralG: 0, distToWP: 0, bearing: 0, speed: 0, eta: 0,
+  wpMeshes: [], wpLineMesh: null, wpDistLine: null,
+};
+function WP_PALETTE(){
+  const SC = seriesColors();
+  return [SC.magenta, SC.cyan, SC.green, SC.yellow, SC.red, SC.amber];
+}
+
+function switchLeftTab(tab) {
+  ['flight','waypoint'].forEach(t => {
+    document.getElementById('ltab-'+t).classList.toggle('active', t===tab);
+    document.getElementById('lp-'+t).classList.toggle('active', t===tab);
+  });
+}
+function setGuidanceMode(m) {
+  const normalized = (m === 'WAYPOINT' || m === 'WP-SEQ') ? 'WP-SEQ' : 'LAUNCH-DIR-HOLD';
+  WP.guidanceMode = normalized;
+  document.getElementById('gm-label').textContent = normalized;
+  ['ldh','wp'].forEach(k => document.getElementById('btn-gm-'+k).classList.remove('active'));
+  document.getElementById(normalized==='LAUNCH-DIR-HOLD'?'btn-gm-ldh':'btn-gm-wp').classList.add('active');
+  document.getElementById('gov-mode').textContent = normalized;
+}
+function addWaypoint() {
+  const x = parseFloat(document.getElementById('wp-in-x').value)||0;
+  const y = parseFloat(document.getElementById('wp-in-y').value)||1.5;
+  const z = parseFloat(document.getElementById('wp-in-z').value)||0;
+  const r = Math.max(0.1, parseFloat(document.getElementById('wp-in-r').value)||0.6);
+  WP.waypoints.push({x,y,z,r,reached:false});
+  renderWpList(); rebuildWpScene();
+}
+function deleteWaypoint(i) {
+  WP.waypoints.splice(i,1);
+  if (WP.currentIdx >= WP.waypoints.length) WP.currentIdx = Math.max(0, WP.waypoints.length-1);
+  renderWpList(); rebuildWpScene();
+}
+function clearWaypoints() {
+  WP.waypoints = []; WP.currentIdx = 0; renderWpList(); rebuildWpScene();
+}
+
+// ── PRESET DEFINITIONS (PID FINAL: hasil pole placement BAB III) ────
+const PID_FINAL = { Kp:0.57836, Ki:1.06540, Kd:0.11654 };
+const PRESETS = {
+  // ★ SKENARIO UJI SKRIPSI — mereplikasi urutan manuver BAB IV
+  // Takeoff→Hover→Roll→Pitch→Yaw→Return→Descent
+  uji: {
+    label: 'SKENARIO UJI (SKRIPSI)',
+    desc:  'Takeoff→Roll→Pitch→Yaw→Landing (sesuai BAB IV)',
+    guidanceMode: 'WP-SEQ',
+    pid: PID_FINAL,
+    nav: { Kn:0.20, maxTiltDeg:12, Vmax:1.2 },
+    sim: { speed:1.0, noise:0.30 },
+    waypoints: [
+      {x:0,  y:1.5, z:0,  r:0.6},   // 1. Takeoff & hover 1.5m
+      {x:3,  y:2.0, z:0,  r:0.6},   // 2. Pitch maju + naik
+      {x:3,  y:2.0, z:3,  r:0.7},   // 3. Yaw + geser lateral (roll)
+      {x:0,  y:2.0, z:3,  r:0.7},   // 4. Mundur
+      {x:0,  y:1.5, z:0,  r:0.8},   // 5. Return to home
+      {x:0,  y:0.5, z:0,  r:0.8},   // 6. Descent
+    ],
+  },
+  straight: {
+    label: 'STRAIGHT CLIMB', desc: 'Naik lurus maju bertahap',
+    guidanceMode: 'LAUNCH-DIR-HOLD', pid: PID_FINAL,
+    nav: { Kn:0.18, maxTiltDeg:12, Vmax:1.5 }, sim: { speed:1.0, noise:0.10 },
+    waypoints: [
+      {x:0, y:1.5, z:0, r:0.8}, {x:2, y:2.5, z:0, r:0.8},
+      {x:5, y:3.5, z:0, r:0.8}, {x:8, y:4.5, z:0, r:0.9}, {x:10, y:5.5, z:0, r:1.0},
+    ],
+  },
+  orbit: {
+    label: 'ORBIT LOOP', desc: 'Lingkaran di ketinggian tetap 3m',
+    guidanceMode: 'WP-SEQ', pid: PID_FINAL,
+    nav: { Kn:0.22, maxTiltDeg:14, Vmax:1.3 }, sim: { speed:1.0, noise:0.08 },
+    waypoints: [
+      {x: 3.0, y:3.0, z: 0.0, r:0.8}, {x: 2.1, y:3.0, z: 2.1, r:0.8},
+      {x: 0.0, y:3.0, z: 3.0, r:0.8}, {x:-2.1, y:3.0, z: 2.1, r:0.8},
+      {x:-3.0, y:3.0, z: 0.0, r:0.8}, {x:-2.1, y:3.0, z:-2.1, r:0.8},
+      {x: 0.0, y:3.0, z:-3.0, r:0.8}, {x: 2.1, y:3.0, z:-2.1, r:0.8},
+    ],
+  },
+  zigzag: {
+    label: 'ZIGZAG SLALOM', desc: 'Kiri-kanan sambil maju dan naik',
+    guidanceMode: 'WP-SEQ', pid: PID_FINAL,
+    nav: { Kn:0.20, maxTiltDeg:13, Vmax:1.4 }, sim: { speed:1.0, noise:0.10 },
+    waypoints: [
+      {x:2, y:2.0, z: 2.0, r:0.8}, {x:4, y:2.5, z:-2.0, r:0.8},
+      {x:6, y:3.0, z: 2.0, r:0.8}, {x:8, y:3.5, z:-2.0, r:0.8}, {x:10, y:4.0, z: 0.0, r:1.0},
+    ],
+  },
+  ascent: {
+    label: 'SPIRAL ASCENT', desc: 'Naik spiral seperti peluncuran',
+    guidanceMode: 'WP-SEQ', pid: PID_FINAL,
+    nav: { Kn:0.18, maxTiltDeg:11, Vmax:1.2 }, sim: { speed:1.0, noise:0.08 },
+    waypoints: [
+      {x: 2.0, y:1.5, z: 0.0, r:0.8}, {x: 1.4, y:2.3, z: 1.4, r:0.8},
+      {x: 0.0, y:3.0, z: 2.0, r:0.8}, {x:-1.4, y:3.5, z: 1.4, r:0.8},
+      {x:-2.0, y:4.0, z: 0.0, r:0.8}, {x:-1.4, y:4.5, z:-1.4, r:0.8},
+      {x: 0.0, y:5.0, z:-2.0, r:0.8}, {x: 1.4, y:5.5, z:-1.4, r:0.9}, {x: 0.0, y:5.5, z: 0.0, r:1.0},
+    ],
+  },
+  return: {
+    label: 'GO & RETURN', desc: 'Terbang ke depan lalu kembali ke home',
+    guidanceMode: 'LAUNCH-DIR-HOLD', pid: PID_FINAL,
+    nav: { Kn:0.18, maxTiltDeg:12, Vmax:1.4 }, sim: { speed:1.0, noise:0.10 },
+    waypoints: [
+      {x:0, y:2.0, z:0, r:0.8}, {x:4, y:3.0, z:0, r:0.8}, {x:8, y:4.0, z:0, r:0.8},
+      {x:8, y:4.0, z:4, r:0.8}, {x:4, y:3.0, z:4, r:0.8}, {x:0, y:2.0, z:0, r:1.2},
+    ],
+  },
+};
+
+// ════════════════════════════════════════════════════════════════
+// ── SKENARIO UJI 13-FASE (SCRIPTED) ─────────────────────────────
+// Untuk validasi lintas platform terhadap simulasi_full_system.py/.m.
+// Jadwal (t_start, roll_deg, pitch_deg, yaw_deg_heading, alt_m) IDENTIK
+// dengan array `scenario` di kedua file itu — lihat komentar di sana.
+// Berbeda dari PRESETS di atas: preset lain memakai guidance waypoint
+// (WP-SEQ/LAUNCH-DIR-HOLD) yang menghasilkan rollRef/pitchRef/yawRef
+// secara dinamis dari galat posisi. Di sini rollRef/pitchRef/altRef
+// didikte LANGSUNG dari tabel, sama seperti .m/.py, supaya nilai di
+// akhir tiap fase bisa dibandingkan apel-ke-apel dengan filter_scenario.
+// ════════════════════════════════════════════════════════════════
+const SCRIPTED_13FASE = [
+  [ 0.0,   0,   0,   0,  0.0],
+  [ 2.0,   0,   0,   0,  3.0],
+  [ 5.0,   0,   0,   0,  3.0],
+  [ 7.0,  12,   0,   0,  3.0],
+  [10.0,   0,   0,   0,  3.0],
+  [12.0,   0,  10,   0,  3.0],
+  [15.0,   0,   0,   0,  3.0],
+  [17.0,   0,   0,  30,  3.0],
+  [19.5,   0,   0,  30,  3.0],
+  [21.0,   0,   0,   0,  3.0],
+  [22.0,   0,   0,   0,  2.0],
+  [24.0,   0,   0,   0,  1.0],
+  [25.5,   0,   0,   0, -0.3],
+  [28.0,   0,   0,   0, -0.3],
+];
+
+const SCRIPTED = { active: false, headingTarget: 0, Kyaw_outer: 1.2 };
+
+// "Hold-previous" lookup — perilakunya sama dengan interp1(...,'previous') di MATLAB
+function scriptedLookup(t) {
+  let row = SCRIPTED_13FASE[0];
+  for (const r of SCRIPTED_13FASE) { if (t >= r[0]) row = r; else break; }
+  return row;
+}
+
+function scriptedScenarioStep() {
+  if (!SCRIPTED.active) return;
+  const row = scriptedLookup(SIM.t);
+  const rollDeg = row[1], pitchDeg = row[2], yawDeg = row[3], altM = row[4];
+  SCRIPTED.headingTarget = yawDeg * Math.PI/180;
+
+  // Roll & pitch: rollRef/pitchRef JS ternormalisasi [-1,1] terhadap SIM.servoMax (30°),
+  // BEDA dari .m/.py yang langsung memakai derajat absolut. Konversi di sini.
+  SIM.rollRef  = Math.max(-1, Math.min(1, (rollDeg  * Math.PI/180) / SIM.servoMax));
+  SIM.pitchRef = Math.max(-1, Math.min(1, (pitchDeg * Math.PI/180) / SIM.servoMax));
+
+  // Altitude: SIM.altRef sudah dalam meter, sama persis dengan alt_ref di .m/.py.
+  SIM.altRef = altM;
+
+  // PENTING — perbedaan arsitektur sumbu yaw:
+  // Loop yaw bawaan simulator ini adalah RATE-hold (errYaw = yawRef_rps - dpsi),
+  // sedangkan .m/.py memakai HEADING-hold (errYaw = yaw_ref - psi). Supaya psi
+  // benar-benar diarahkan ke headingTarget seperti di .m/.py, loop-P luar berikut
+  // ditambahkan HANYA untuk mode skenario-scripted ini, mengubah galat heading
+  // menjadi perintah rate yang lalu diumpankan ke SIM.yawRef (dan diproses PID
+  // rate bawaan seperti biasa). Ini bukan pengganti PID yaw di .m/.py — hanya
+  // shim agar sumbu yaw bisa diuji dengan tabel referensi yang sama.
+  const headErr = Math.atan2(
+    Math.sin(SCRIPTED.headingTarget - SIM.psi),
+    Math.cos(SCRIPTED.headingTarget - SIM.psi)
+  );
+  SIM.yawRef = Math.max(-1, Math.min(1, SCRIPTED.Kyaw_outer * headErr));
+
+  // Auto-stop & auto-export tepat di t=28s (akhir Fase 13), meniru t_total di .m/.py
+  if (SIM.t >= 28.0) {
+    SCRIPTED.active = false;
+    SIM.running = false;
+    REC.active = false;
+    const btn = document.getElementById('btn-run');
+    if (btn) { btn.textContent = '\u25B6 RUN'; btn.classList.remove('active'); }
+    exportCSV();
+  }
+}
+
+function runScriptedScenario13() {
+  resetSim();
+  resetWpNav();
+  WP.active = false;                          // matikan guidance waypoint sepenuhnya
+  setMode('manual');                          // rollRef/pitchRef/yawRef/altRef didikte manual
+  SIM.Kp = PID_FINAL.Kp; SIM.Ki = PID_FINAL.Ki; SIM.Kd = PID_FINAL.Kd;  // gain sama dgn .m/.py
+  SCRIPTED.active = true;
+  REC.active = true; REC.rows = []; REC.counter = 0;
+  SIM.running = true;
+  const btn = document.getElementById('btn-run');
+  if (btn) { btn.textContent = '\u23F8 PAUSE'; btn.classList.add('active'); }
+}
+
+function loadPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  resetSim(); resetWpNav();
+  clearWaypoints();
+  p.waypoints.forEach(wp => WP.waypoints.push({...wp, reached:false}));
+  renderWpList();
+  const sl = (id, valId, val, fmt) => {
+    const e = document.getElementById(id); if(e) e.value = val;
+    const v = document.getElementById(valId); if(v) v.textContent = fmt(val);
+  };
+  SIM.Kp = p.pid.Kp; SIM.Ki = p.pid.Ki; SIM.Kd = p.pid.Kd;
+  sl('sl-kp','v-kp', p.pid.Kp, v=>v.toFixed(2));
+  sl('sl-ki','v-ki', p.pid.Ki, v=>v.toFixed(2));
+  sl('sl-kd','v-kd', p.pid.Kd, v=>v.toFixed(2));
+  sl('sl-speed','v-speed', p.sim.speed, v=>v.toFixed(1)+'x');
+  sl('sl-noise','v-noise', p.sim.noise, v=>v.toFixed(2));
+  SIM.speed = p.sim.speed; SIM.noiseLevel = p.sim.noise;
+  WP.Kn = p.nav.Kn; WP.maxTilt = p.nav.maxTiltDeg * Math.PI/180;
+  WP.Vmax = p.nav.Vmax || 1.2;
+  sl('sl-kn','v-kn', p.nav.Kn, v=>v.toFixed(2));
+  sl('sl-maxtilt','v-maxtilt', p.nav.maxTiltDeg, v=>v.toFixed(0)+'°');
+  setGuidanceMode(p.guidanceMode);
+  rebuildWpScene();
+  switchLeftTab('waypoint');
+  setMode('auto');
+  document.querySelectorAll('.chart-tab').forEach((t,i) => t.classList.toggle('active', i===1));
+  SIM.chartTab = 1;
+  showPresetBanner(p.label, p.desc);
+}
+function showPresetBanner(label, desc) {
+  let banner = document.getElementById('preset-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'preset-banner';
+    banner.style.cssText = `position:absolute;top:44px;left:50%;transform:translateX(-50%);
+      background:rgba(192,132,252,0.95);color:#1a0a2e;padding:6px 20px;border-radius:0 0 8px 8px;
+      font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;
+      text-align:center;z-index:100;pointer-events:none;transition:opacity 0.5s;white-space:nowrap;`;
+    document.body.appendChild(banner);
+  }
+  banner.style.opacity = '1';
+  banner.innerHTML = `◎ PRESET: ${label} &nbsp;·&nbsp; <span style="font-weight:400;font-size:11px;">${desc}</span>`;
+  clearTimeout(banner._t);
+  banner._t = setTimeout(() => { banner.style.opacity='0'; }, 4000);
+}
+function renderWpList() {
+  const el = document.getElementById('wp-list');
+  el.innerHTML = '';
+  document.getElementById('wp-count-lbl').textContent = WP.waypoints.length + ' pts';
+  WP.waypoints.forEach((wp,i) => {
+    const col = WP_PALETTE()[i % 6];
+    const div = document.createElement('div');
+    div.className = 'wp-item' + (i===WP.currentIdx&&WP.active?' active-wp':'') + (wp.reached?' reached':'');
+    div.innerHTML = `
+      <div class="wp-dot" style="border-color:${col}; background:${wp.reached?col:'transparent'}"></div>
+      <div class="wp-coords"><b>WP${i+1}</b><br>X:${wp.x.toFixed(1)} Y:${wp.y.toFixed(1)} Z:${wp.z.toFixed(1)} R:${wp.r.toFixed(1)}</div>
+      <button class="wp-del" onclick="deleteWaypoint(${i})">✕</button>`;
+    el.appendChild(div);
+  });
+}
+function toggleWpNav() {
+  if (WP.waypoints.length === 0) { alert('Tambahkan minimal satu waypoint dulu.'); return; }
+  if (SIM.crashed) { alert('Wahana CRASH — tekan ↺ RESET dulu sebelum navigasi.'); return; }
+  if (!WP.active && WP.waypoints.every(w => w.reached)) {
+    // misi sebelumnya sudah selesai: bersihkan flag agar bisa diulang
+    WP.waypoints.forEach(w => w.reached = false);
+    WP.currentIdx = 0; renderWpList();
+  }
+  WP.active = !WP.active;
+  if (WP.active && SIM.mode !== 'auto') setMode('auto');   // guidance butuh AUTO
+  const btn = document.getElementById('btn-wp-run');
+  btn.textContent = WP.active ? '⏸ PAUSE NAV' : '▶ START NAV';
+  btn.classList.toggle('active', WP.active);
+  document.getElementById('guidance-overlay').style.display = WP.active ? 'block' : 'none';
+  document.getElementById('wp-data-box').style.display = WP.active ? 'block' : 'none';
+  document.getElementById('wp-progress-bar').style.display = WP.active ? 'block' : 'none';
+  document.getElementById('gov-mode').textContent = WP.guidanceMode;
+  if (WP.active && !SIM.running) toggleSim();
+}
+function resetWpNav() {
+  WP.active = false; WP.currentIdx = 0;
+  WP.waypoints.forEach(w => w.reached = false);
+  renderWpList();
+  const btn = document.getElementById('btn-wp-run');
+  btn.textContent = '▶ START NAV'; btn.classList.remove('active');
+  document.getElementById('guidance-overlay').style.display = 'none';
+  document.getElementById('wp-data-box').style.display = 'none';
+  document.getElementById('wp-progress-bar').style.display = 'none';
+  document.getElementById('wp-progress-fill').style.width = '0%';
+}
+
+// ── Waypoint Guidance Step ─────────────────────────────────────
+// VELOCITY-TARGETING GUIDANCE (tervalidasi 6/6 WP, tidak divergen):
+//   1. Hitung kecepatan target menuju WP (terbatas Vmax, mengecil saat dekat)
+//   2. Tilt command = Kvel*(v_target - v_aktual) → PD natural braking
+//   PENTING: tanda ROLL dibalik karena roll+ → gerak Y NEGATIF di plant.
+//   Kedua mode (LDH & WP-SEQ) kini memakai hukum sama yang robust;
+//   WP-SEQ menambah orientasi yaw ke arah lintasan (kosmetik visual).
+function waypointGuidanceStep(dt) {
+  // hanya berjalan di mode AUTO (mode Semi/Manual = kendali slider pengguna,
+  // sebelumnya guidance tetap menimpa slider — bug) dan tidak saat crash
+  if (!WP.active || WP.waypoints.length === 0 || SIM.mode !== 'auto' || SIM.crashed) return;
+
+  if (WP.waypoints[WP.currentIdx] && WP.waypoints[WP.currentIdx].reached) {
+    const next = WP.waypoints.findIndex((w,i) => i > WP.currentIdx && !w.reached);
+    if (next === -1) {   // seluruh WP sudah tercapai — selesai (jangan hapus flag)
+      WP.active = false;
+      SIM.rollRef = 0; SIM.pitchRef = 0; SIM.yawRef = 0;
+      const b = document.getElementById('btn-wp-run');
+      if (b) { b.textContent = '✓ SELESAI'; b.classList.remove('active'); }
+      return;
+    }
+    WP.currentIdx = next;
+  }
+  const wp = WP.waypoints[WP.currentIdx];
+  if (!wp) return;
+
+  // Error posisi (x=depan, z lateral dipetakan ke SIM.y, alt ke SIM.z)
+  const ex   = wp.x - SIM.x;
+  const ez   = wp.z - SIM.y;
+  const dAlt = wp.y - SIM.z;
+  const horizDist = Math.sqrt(ex*ex + ez*ez);
+  const totalDist = Math.sqrt(ex*ex + dAlt*dAlt + ez*ez);
+  WP.distToWP = totalDist;
+
+  const spd = Math.sqrt(SIM.dx*SIM.dx + SIM.dy*SIM.dy + SIM.dz*SIM.dz);
+  WP.speed = spd;
+  WP.eta   = spd > 0.05 ? totalDist / spd : 999;
+  WP.bearing = Math.atan2(ex, ez) * RAD;
+
+  // Altitude target langsung (PID altitude yang menangani) + sinkron UI
+  if (SIM.altRef !== wp.y) {
+    SIM.altRef = wp.y;
+    const sa = document.getElementById('sl-alt'); if (sa) sa.value = wp.y;
+    const va = document.getElementById('v-alt');  if (va) va.textContent = wp.y.toFixed(1)+'m';
+  }
+
+  // ── Velocity-targeting guidance ──────────────────────────
+  const Vmax = WP.Vmax;
+  const Kappr = 1.5;                 // gain jarak→kecepatan target
+  const Kvel  = 0.9;                 // gain error kecepatan→tilt
+  const tiltMax = WP.maxTilt;
+  const norm = SIM.servoMax;
+  const brake = Math.min(1, horizDist / 0.5);   // rem halus saat <0.5m
+
+  const vtx = Math.max(-Vmax, Math.min(Vmax, Kappr * ex)) * brake;
+  const vty = Math.max(-Vmax, Math.min(Vmax, Kappr * ez)) * brake;
+
+  // pitch+ → X+ (benar); roll+ → Y- (maka roll command DIBALIK tandanya)
+  const rawPitch =  Kvel * (vtx - SIM.dx);
+  const rawRoll  = -Kvel * (vty - SIM.dy);
+  const pitchCmd_rad = Math.max(-tiltMax, Math.min(tiltMax, rawPitch));
+  const rollCmd_rad  = Math.max(-tiltMax, Math.min(tiltMax, rawRoll));
+  SIM.pitchRef = Math.max(-1, Math.min(1, pitchCmd_rad / norm));
+  SIM.rollRef  = Math.max(-1, Math.min(1, rollCmd_rad  / norm));
+
+  // Mode WP-SEQ: orientasikan yaw ke arah gerak (visual saja, tak ganggu posisi)
+  if (WP.guidanceMode === 'WP-SEQ' && horizDist > 0.3) {
+    let yawErr = Math.atan2(ex, ez) - SIM.psi;
+    while (yawErr >  Math.PI) yawErr -= 2*Math.PI;
+    while (yawErr < -Math.PI) yawErr += 2*Math.PI;
+    SIM.yawRef = Math.max(-1, Math.min(1, yawErr * 0.3));
+  } else {
+    SIM.yawRef = 0;
+  }
+
+  // Lateral G (indikator): percepatan lateral nyata dari vektor thrust miring
+  //   a_lat = g·tan(√(φ²+θ²))  →  G = a_lat / g = tan(tilt)
+  const tiltNow = Math.min(1.2, Math.sqrt(SIM.phi*SIM.phi + SIM.theta*SIM.theta));
+  WP.lateralG = Math.abs(Math.tan(tiltNow));
+
+  // Arrival check
+  if (totalDist <= wp.r) {
+    wp.reached = true; renderWpList();
+    const next = WP.waypoints.findIndex((w,i) => i > WP.currentIdx && !w.reached);
+    if (next === -1) {
+      // Semua waypoint tercapai — hentikan navigasi tapi pertahankan status visual
+      SIM.rollRef = 0; SIM.pitchRef = 0; SIM.yawRef = 0;
+      WP.active = false;
+      const btn = document.getElementById('btn-wp-run');
+      if (btn) { btn.textContent = '✓ SELESAI'; btn.classList.remove('active'); }
+      document.getElementById('wp-progress-fill').style.width = '100%';
+      showPresetBanner('NAVIGASI SELESAI', 'Semua waypoint tercapai');
+    } else { WP.currentIdx = next; }
+  }
+  updateWpDistLine();
+}
+
+function rebuildWpScene() {
+  WP.wpMeshes.forEach(m => scene && scene.remove(m));
+  WP.wpMeshes = [];
+  if (WP.wpLineMesh) { scene && scene.remove(WP.wpLineMesh); WP.wpLineMesh = null; }
+  if (!scene || WP.waypoints.length === 0) return;
+  const points3 = [];
+  WP.waypoints.forEach((wp, i) => {
+    const col = parseInt(WP_PALETTE()[i % 6].replace('#',''), 16);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(wp.r*0.8, wp.r, 32),
+      new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent:true, opacity:0.5 }));
+    ring.rotation.x = -Math.PI/2; ring.position.set(wp.x, 0.05, wp.z); scene.add(ring); WP.wpMeshes.push(ring);
+    const yv = wp.y + 0.745;   // sejajar pusat wahana (CRAFT_GROUND_OFFSET)
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, yv+0.2, 8),
+      new THREE.MeshBasicMaterial({ color: col, transparent:true, opacity:0.25 }));
+    cyl.position.set(wp.x, (yv+0.2)/2, wp.z); scene.add(cyl); WP.wpMeshes.push(cyl);
+    const sph = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12),
+      new THREE.MeshBasicMaterial({ color: col, transparent:true, opacity:0.8 }));
+    sph.position.set(wp.x, yv, wp.z); scene.add(sph); WP.wpMeshes.push(sph);
+    points3.push(new THREE.Vector3(wp.x, yv, wp.z));
+  });
+  if (points3.length > 1) {
+    WP.wpLineMesh = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points3),
+      new THREE.LineBasicMaterial({ color: 0x9900cc, transparent:true, opacity:0.5 }));
+    scene.add(WP.wpLineMesh);
+  }
+  if (!WP.wpDistLine) {
+    WP.wpDistLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1,0)]),
+      new THREE.LineDashedMaterial({ color: 0x9900cc, transparent:true, opacity:0.4, dashSize:0.2, gapSize:0.1 }));
+    WP.wpDistLine.computeLineDistances(); scene.add(WP.wpDistLine);
+  }
+}
+function updateWpDistLine() {
+  if (!WP.wpDistLine || WP.waypoints.length === 0) return;
+  const wp = WP.waypoints[WP.currentIdx];
+  if (!wp) return;
+  WP.wpDistLine.geometry.setFromPoints([new THREE.Vector3(SIM.x, SIM.z + 0.745, SIM.y), new THREE.Vector3(wp.x, wp.y + 0.745, wp.z)]);
+  WP.wpDistLine.computeLineDistances();
+  WP.wpDistLine.geometry.attributes.position.needsUpdate = true;
+}
+function updateWpUI() {
+  if (!WP.active || WP.waypoints.length === 0) return;
+  const wp = WP.waypoints[WP.currentIdx];
+  if (!wp) return;
+  const dist = WP.distToWP.toFixed(2), g = WP.lateralG.toFixed(2);
+  const spd = WP.speed.toFixed(2), bear = WP.bearing.toFixed(1);
+  const eta = WP.eta > 500 ? '∞' : WP.eta.toFixed(1)+'s';
+  const reached = WP.waypoints.filter(w=>w.reached).length, total = WP.waypoints.length;
+  document.getElementById('gov-dist').textContent = dist;
+  document.getElementById('gov-g').textContent = g;
+  document.getElementById('wdb-idx').textContent = `${WP.currentIdx+1} / ${total}`;
+  document.getElementById('wdb-tgt').textContent = `(${wp.x.toFixed(1)}, ${wp.y.toFixed(1)}, ${wp.z.toFixed(1)})`;
+  document.getElementById('wdb-dist').textContent = dist + ' m';
+  document.getElementById('wdb-bear').textContent = bear + '°';
+  document.getElementById('wdb-spd').textContent = spd + ' m/s';
+  const gEl = document.getElementById('wdb-g');
+  gEl.textContent = g + ' g';
+  gEl.className = 'wdb-val' + (WP.lateralG>3?' crit': WP.lateralG>1.5?' warn':' ok');
+  document.getElementById('wdb-eta').textContent = eta;
+  document.getElementById('wdb-status').textContent = WP.guidanceMode === 'LAUNCH-DIR-HOLD' ? 'LAUNCH-DIR-HOLD' : 'WAYPOINT SEQ';
+  document.getElementById('wp-idx-lbl').textContent = `${WP.currentIdx+1} / ${total}`;
+  document.getElementById('wp-dist-lbl').textContent = dist + ' m';
+  document.getElementById('wp-g-lbl').textContent = g + ' g';
+  document.getElementById('wp-eta-lbl').textContent = eta;
+  document.getElementById('wp-progress-fill').style.width = (total > 0 ? (reached / total * 100) : 0) + '%';
+  WP.wpMeshes.forEach((m,i) => {
+    if ((i % 3) === 2) {
+      const wpIdx = Math.floor(i/3);
+      if (wpIdx === WP.currentIdx) m.scale.setScalar(1 + 0.3 * Math.sin(Date.now()*0.006));
+      else m.scale.setScalar(WP.waypoints[wpIdx]&&WP.waypoints[wpIdx].reached ? 0.6 : 1);
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const slKn = document.getElementById('sl-kn');
+  if (slKn) slKn.addEventListener('input', () => {
+    WP.Kn = parseFloat(slKn.value);
+    document.getElementById('v-kn').textContent = WP.Kn.toFixed(2);
+  });
+  const slTilt = document.getElementById('sl-maxtilt');
+  if (slTilt) slTilt.addEventListener('input', () => {
+    WP.maxTilt = parseFloat(slTilt.value) * Math.PI/180;
+    document.getElementById('v-maxtilt').textContent = parseFloat(slTilt.value).toFixed(0)+'°';
+  });
+  // Escape menutup modal bantuan
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const ov = document.getElementById('help-overlay');
+      if (ov && ov.classList.contains('show')) ov.classList.remove('show');
+    }
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  RC BRIDGE — kendali dari Remote Control (HP) via relay-server.js
+//  Menggantikan peran ESP32 sebagai lawan bicara WebSocket rc_final.js.
+//  Protokol pesan (identik dgn yang dipakai rc_final.js utk firmware asli):
+//    masuk : {cmd:"rc",roll,pitch,yaw,thr} {cmd:"arm",armed} {cmd:"mode",mode}
+//    keluar: {att:{roll,pitch,yaw}, alt:{z}, sys:{...}, ctrl:{thr}, led:{...}}
+// ════════════════════════════════════════════════════════════════
+const RC_BRIDGE = { ws: null, connected: false, rcLost: false };
+const RC_ALT_RATE = 1.0;     // m/s — laju naik/turun maksimum saat stick throttle full
+let rcLastMsgTs = null;
+
+// ── TRIM & KALIBRASI (live) — dikirim RC lewat {cmd:"trim", ...} ──
+// yawFF:null berarti "otomatis" (dihitung live dari cq,m,g,Keff, BAB III);
+// diisi angka -> override manual. s1..s4: netral fisik tiap servo (derajat,
+// default 90=tanpa bias). rollTrim/pitchTrim: koreksi bias IMU (derajat).
+const SIM_TRIM = { yawFF: null, s1: 90, s2: 90, s3: 90, s4: 90, rollTrim: 0, pitchTrim: 0 };
+
+// ── TEST SERVO MANUAL — bypass PID/servo mixer, gerakkan 1 fin langsung ──
+// (identik dgn perilaku firmware: "servo digerakkan langsung, motor idle,
+// servo lain ditahan netral 90°" — lihat modal Test Servo Manual di RC)
+const SERVO_TEST = { active: false, idx: 0, angleDeg: 90 };
+
+function applyServoTestOverride(dt) {
+  const targetRad = (SERVO_TEST.angleDeg - 90) * DEG;   // 90° (netral RC) = 0 rad (netral sim)
+  const targets = [0, 0, 0, 0];
+  targets[SERVO_TEST.idx] = targetRad;
+  SIM.s1 = servoDynamics(SIM.s1, targets[0], dt);
+  SIM.s2 = servoDynamics(SIM.s2, targets[1], dt);
+  SIM.s3 = servoDynamics(SIM.s3, targets[2], dt);
+  SIM.s4 = servoDynamics(SIM.s4, targets[3], dt);
+  SIM.throttle = 0.05;                                    // motor idle selama test
+  SIM.intRoll = 0; SIM.intPitch = 0; SIM.intYaw = 0; SIM.intAlt = 0;  // integrator bersih saat kembali normal
+}
+
+function rcBridgeConnect() {
+  const url = `ws://${location.host}/ws`;
+  let sock;
+  try { sock = new WebSocket(url); } catch (e) { setTimeout(rcBridgeConnect, 1500); return; }
+  RC_BRIDGE.ws = sock;
+  sock.onopen  = () => { RC_BRIDGE.connected = true; console.log('[RC bridge] terhubung:', url); };
+  sock.onclose = () => { RC_BRIDGE.connected = false; setTimeout(rcBridgeConnect, 1500); };
+  sock.onerror = () => { sock.close(); };
+  sock.onmessage = (ev) => {
+    let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+    handleRcCommand(d);
+  };
+}
+
+function rcSetSliderVisual(id, valId, sliderVal, labelText) {
+  const el = document.getElementById(id);   if (el) el.value = sliderVal;
+  const v  = document.getElementById(valId); if (v)  v.textContent = labelText;
+}
+
+function handleRcCommand(d) {
+  if (d.cmd === 'rc') {
+    const now = performance.now();
+    let dt = 0.02;
+    if (rcLastMsgTs !== null) dt = Math.max(0.005, Math.min(0.1, (now - rcLastMsgTs) / 1000));
+    rcLastMsgTs = now;
+
+    const roll  = Math.max(-1, Math.min(1, +d.roll  || 0));
+    const pitch = Math.max(-1, Math.min(1, +d.pitch || 0));
+    const yaw   = Math.max(-1, Math.min(1, +d.yaw   || 0));
+    const thr   = Math.max(0,  Math.min(1, +d.thr   || 0));
+
+    // roll/pitch: referensi sudut langsung (Persamaan sama dgn slider sl-roll/sl-pitch)
+    SIM.rollRef  = roll;
+    SIM.pitchRef = pitch;
+    // yaw: referensi laju yaw (rad/s), sama seperti slider sl-yaw
+    SIM.yawRef   = yaw;
+    // throttle stick = perintah laju naik/turun (mode alt-hold), tengah(0.5) = tahan ketinggian
+    SIM.altRef = Math.max(0, Math.min(20, SIM.altRef + (thr - 0.5) * 2 * RC_ALT_RATE * dt));
+
+    rcSetSliderVisual('sl-roll',  'v-roll',  roll  * 100, roll.toFixed(2));
+    rcSetSliderVisual('sl-pitch', 'v-pitch', pitch * 100, pitch.toFixed(2));
+    rcSetSliderVisual('sl-yaw',   'v-yaw',   yaw   * 100, yaw.toFixed(2));
+    rcSetSliderVisual('sl-alt',   'v-alt',   SIM.altRef,  SIM.altRef.toFixed(1) + 'm');
+  } else if (d.cmd === 'arm') {
+    if (d.armed && !SIM.running) {
+      if (SIM.crashed) resetSim();
+      SIM.running = true;
+    } else if (!d.armed) {
+      SIM.running = false;
+    }
+    const btn = document.getElementById('btn-run');
+    if (btn) {
+      btn.textContent = SIM.running ? '\u23F8 PAUSE' : '\u25B6 RUN';
+      btn.classList.toggle('active', SIM.running);
+    }
+  } else if (d.cmd === 'mode') {
+    const map = ['auto', 'semi', 'manual'];
+    setMode(map[d.mode] || 'manual');
+  } else if (d.cmd === 'servo_test') {
+    if (d.stage === 'start') {
+      SERVO_TEST.active = true;
+      SERVO_TEST.idx = 0;
+      SERVO_TEST.angleDeg = 90;
+      SIM.running = true;    // supaya animasi fin terlihat bergerak di layar
+      const btn = document.getElementById('btn-run');
+      if (btn) { btn.textContent = '\u23F8 PAUSE'; btn.classList.add('active'); }
+    } else if (d.stage === 'set') {
+      SERVO_TEST.idx = Math.max(0, Math.min(3, +d.idx || 0));
+      SERVO_TEST.angleDeg = Math.max(0, Math.min(180, +d.angle || 90));
+    } else if (d.stage === 'stop') {
+      SERVO_TEST.active = false;
+    }
+    // stage:'ping' — keepalive dari RC, tidak perlu aksi apa pun di simulator
+  } else if (d.cmd === 'trim') {
+    if (d.yaw_ff     !== undefined) SIM_TRIM.yawFF     = +d.yaw_ff;
+    if (d.s1         !== undefined) SIM_TRIM.s1        = +d.s1;
+    if (d.s2         !== undefined) SIM_TRIM.s2        = +d.s2;
+    if (d.s3         !== undefined) SIM_TRIM.s3        = +d.s3;
+    if (d.s4         !== undefined) SIM_TRIM.s4        = +d.s4;
+    if (d.roll_trim  !== undefined) SIM_TRIM.rollTrim  = +d.roll_trim;
+    if (d.pitch_trim !== undefined) SIM_TRIM.pitchTrim = +d.pitch_trim;
+  } else if (d.cmd === 'alt_ref') {
+    // dari DASHBOARD (index.html): slider "Altitude Reference"
+    SIM.altRef = Math.max(0, Math.min(20, +d.value || 0));
+    rcSetSliderVisual('sl-alt', 'v-alt', SIM.altRef, SIM.altRef.toFixed(1) + 'm');
+  } else if (d.cmd === 'pid') {
+    // dari DASHBOARD: PID TUNING (LIVE). roll & pitch berbagi satu set gain
+    // (Kp,Ki,Kd) sesuai rancangan BAB III (kedua sumbu identik krn Ixx=Iyy) —
+    // mengatur salah satu loop "roll"/"pitch" akan memengaruhi keduanya.
+    const kp = +d.kp, ki = +d.ki, kd = +d.kd;
+    if (d.loop === 'roll' || d.loop === 'pitch') {
+      SIM.Kp = kp; SIM.Ki = ki; SIM.Kd = kd;
+      rcSetSliderVisual('sl-kp', 'v-kp', kp, kp.toFixed(2));
+      rcSetSliderVisual('sl-ki', 'v-ki', ki, ki.toFixed(2));
+      rcSetSliderVisual('sl-kd', 'v-kd', kd, kd.toFixed(2));
+    } else if (d.loop === 'yaw') {
+      SIM.Kp_yaw = kp; SIM.Ki_yaw = ki; SIM.Kd_yaw = kd;
+    } else if (d.loop === 'alt') {
+      SIM.Kp_alt = kp; SIM.Ki_alt = ki; SIM.Kd_alt = kd;
+      rcSetSliderVisual('sl-kp-alt', 'v-kp-alt', kp, kp.toFixed(2));
+      rcSetSliderVisual('sl-kd-alt', 'v-kd-alt', kd, kd.toFixed(2));
+    }
+  } else if (d.cmd === 'wp_load') {
+    // dari DASHBOARD: textarea "x,y,z" per baris (z = ketinggian di dashboard).
+    // Konvensi simulator: y = ketinggian, x/z = bidang horizontal — tukar sumbu.
+    if (Array.isArray(d.wp)) {
+      WP.waypoints = d.wp.map((p) => ({
+        x: +p[0] || 0, y: +p[2] || 1.5, z: +p[1] || 0, r: 0.6, reached: false,
+      }));
+      WP.currentIdx = 0;
+      if (typeof renderWpList === 'function') renderWpList();
+      if (typeof rebuildWpScene === 'function') rebuildWpScene();
+    }
+  } else if (d.cmd === 'wp_start') {
+    if (WP.waypoints.length > 0) {
+      setMode('auto');
+      setGuidanceMode('WP-SEQ');
+      WP.currentIdx = 0;
+      WP.active = true;
+      SIM.running = true;
+    }
+  } else if (d.cmd === 'wp_stop') {
+    WP.active = false;
+  }
+  // cmd lain dari rc_final.js (esc_cal, servo_test, motor_test) sengaja
+  // diabaikan di sini — fitur kalibrasi hardware ESP32 tidak relevan
+  // untuk simulator murni berbasis fisika.
+}
+
+function rcBridgeSendTelemetry() {
+  if (!RC_BRIDGE.connected || !RC_BRIDGE.ws || RC_BRIDGE.ws.readyState !== 1) return;
+  const Ky = 0.5 * SIM.Keff;
+  // Akselerometer 3-sumbu didekati dari sikap sesungguhnya (bebas derau,
+  // beda dgn accRoll/accPitch internal Kalman yang sengaja diberi derau) —
+  // g-force di dashboard akan terbaca ~1.0 pada hover datar, sesuai fisika.
+  const accX = Math.sin(SIM.theta), accY = -Math.sin(SIM.phi);
+  const accZ = Math.cos(SIM.phi) * Math.cos(SIM.theta);
+  RC_BRIDGE.ws.send(JSON.stringify({
+    t: Math.round(SIM.t * 1000),
+    att:  { roll: SIM.phi * RAD, pitch: SIM.theta * RAD, yaw: SIM.psi * RAD },
+    rate: { gx: SIM.dphi, gy: SIM.dtheta, gz: SIM.dpsi },
+    acc:  { ax: accX, ay: accY, az: accZ },
+    kf:   { roll: SIM.xK_roll[0] * RAD, pitch: SIM.xK_pitch[0] * RAD, gain: SIM.kGainRoll ? SIM.kGainRoll[0] : 0.174 },
+    alt:  { z: SIM.z, vz: SIM.dz, ref: SIM.altRef },
+    ctrl: { thr: SIM.throttle, s1: SIM.s1 * RAD, s2: SIM.s2 * RAD, s3: SIM.s3 * RAD, s4: SIM.s4 * RAD },
+    pid:  { roll: SIM.lastPidRoll || 0, pitch: SIM.lastPidPitch || 0, yaw: SIM.lastPidYaw || 0, alt: SIM.lastPidAlt || 0 },
+    sys: {
+      hz: 50, armed: SIM.running, vbat: SIM.battV, pct: Math.round((SIM.battV - 9.9) / (12.6 - 9.9) * 100),
+      escCal: 0, escUs: Math.round(1000 + SIM.throttle * 1000), escOk: true,
+      motorTest: 0, rcLost: RC_BRIDGE.rcLost, mode: SIM.mode === 'auto' ? 0 : (SIM.mode === 'semi' ? 1 : 2),
+    },
+    nav: { active: WP.active, idx: WP.currentIdx, count: WP.waypoints.length, dist: WP.distToWP || 0 },
+    trim: {
+      yawFF: SIM_TRIM.yawFF !== null ? SIM_TRIM.yawFF : (SIM.cq * SIM.m * SIM.g) / (4 * Ky),
+      s1: SIM_TRIM.s1, s2: SIM_TRIM.s2, s3: SIM_TRIM.s3, s4: SIM_TRIM.s4,
+      rollTrim: SIM_TRIM.rollTrim, pitchTrim: SIM_TRIM.pitchTrim,
+    },
+    led: { r: SIM.running, g: !SIM.crashed, b: RC_BRIDGE.connected },
+  }));
+}
+
+rcBridgeConnect();
+setInterval(rcBridgeSendTelemetry, 100);   // 10 Hz telemetri balik ke RC
+
+initThree();
+try { if (localStorage.getItem('mc_theme') === 'light') setTheme(true); } catch(e) {}
+requestAnimationFrame(mainLoop);
+
+</script>
+</body>
+</html>
